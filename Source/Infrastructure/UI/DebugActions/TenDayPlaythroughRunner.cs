@@ -789,8 +789,12 @@ namespace RimMind.Infrastructure.UI.DebugActions
                     }
 
                     // RIMMIND_PLAYTHROUGH_CONTROL=1: no-AI baseline through the same runner (no active PawnAgents).
+                    // RIMMIND_PLAYTHROUGH_ALL_AGENTS=1: every colonist gets a PawnAgent (full autonomy). By default one
+                    // colonist stays agent-less so the Advisor/Personality/Dialogue paths are exercised on their own.
                     bool controlRun = Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_CONTROL") == "1";
+                    bool allAgents = Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_ALL_AGENTS") == "1";
                     int activeAgentTargetCount = controlRun ? 0
+                        : allAgents ? colonists.Count
                         : colonists.Count >= 2 ? Math.Max(1, colonists.Count - 1)
                         : 1;
 

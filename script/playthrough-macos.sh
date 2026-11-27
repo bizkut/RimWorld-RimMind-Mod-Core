@@ -14,6 +14,7 @@
 #        SPEED             Normal|Fast|Superfast|Ultrafast (RIMMIND_PLAYTHROUGH_SPEED; default Fast)
 #        HARMONY_DIR       Harmony mod folder to install if Mods/Harmony is missing (e.g. a HarmonyRimWorld checkout)
 #        CONTROL=1         no-AI baseline: no PawnAgents activated (combine with MODULES=Core for no Advisor/Actions)
+#        ALL_AGENTS        default 1: every colonist gets a PawnAgent; 0 keeps the runner's one-agent-less split
 # output: .playthrough/runs/<run-id>/ (report JSON, chronicle, Player.log); per-day colony stats printed at the end
 set -euo pipefail
 
@@ -112,7 +113,7 @@ say "run $RUN_ID: $DAYS day(s) at $SPEED, $MODEL via $ENDPOINT, control=${CONTRO
 open -n -a "$RW" \
     --env "RIMMIND_TEST_ENDPOINT=$ENDPOINT" --env "RIMMIND_TEST_MODEL=$MODEL" --env "RIMMIND_TEST_API_KEY=$API_KEY" \
     --env "RIMMIND_PLAYTHROUGH_OUTPUT_DIR=$OUT" --env "RIMMIND_PLAYTHROUGH_SPEED=$SPEED" --env "RIMMIND_PLAYTHROUGH_AUTO_EXIT=1" \
-    --env "RIMMIND_PLAYTHROUGH_CONTROL=${CONTROL:-0}" \
+    --env "RIMMIND_PLAYTHROUGH_CONTROL=${CONTROL:-0}" --env "RIMMIND_PLAYTHROUGH_ALL_AGENTS=${ALL_AGENTS:-1}" \
     --args -quicktest "-rimmind-playthrough=$RUN_ID" "-rimmind-playthrough-days=$DAYS"
 # RimWorld does not start -quicktest until its window has been activated once. `open -a` (no -n) activates the
 # running instance through LaunchServices; unlike System Events it needs no Accessibility permission.
