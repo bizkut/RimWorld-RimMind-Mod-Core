@@ -285,7 +285,25 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Work
             return FindDef(alias) ?? DefDatabase<WorkTypeDef>.AllDefsListForReading.FirstOrDefault(w =>
                 string.Equals(w.defName, alias, System.StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(w.labelShort, trimmed, System.StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(w.gerundLabel, trimmed, System.StringComparison.OrdinalIgnoreCase));
+                string.Equals(w.gerundLabel, trimmed, System.StringComparison.OrdinalIgnoreCase))
+                ?? ResolveBySkill(trimmed);
+        }
+
+        /// <summary>
+        /// Models often name the skill instead of the work type ("Intellectual" for Research, "Plants" for Growing).
+        /// Map a skill to the work type that trains it; with several candidates take the highest natural priority.
+        /// </summary>
+        private static WorkTypeDef? ResolveBySkill(string name)
+        {
+            var skill = DefDatabase<SkillDef>.AllDefsListForReading.FirstOrDefault(s =>
+                string.Equals(s.defName, name, System.StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(s.label, name, System.StringComparison.OrdinalIgnoreCase));
+            if (skill == null) return null;
+
+            return DefDatabase<WorkTypeDef>.AllDefsListForReading
+                .Where(w => w.relevantSkills != null && w.relevantSkills.Contains(skill))
+                .OrderByDescending(w => w.naturalPriority)
+                .FirstOrDefault();
         }
     }
 }

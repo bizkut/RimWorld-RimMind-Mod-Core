@@ -154,6 +154,8 @@ namespace RimMind.Infrastructure.Agent
                 obj = new JObject();
             }
 
+            UnwrapNestedArguments(obj, tool.Definition?.ParametersSchema);
+
             if (pawnId > 0)
             {
                 bool isSelfTargetedTool = tool.Definition?.Manifest?.IsSelfTargeted == true;
@@ -214,6 +216,39 @@ namespace RimMind.Infrastructure.Agent
 
             obj["def_name"] = value;
             return obj;
+        }
+
+        private static readonly string[] ArgumentWrapperKeys = { "params", "parameters", "arguments", "args" };
+
+        /// <summary>
+        /// Models sometimes nest the real arguments one level down ({"params":{"action":"social_relax"}}), so the tool
+        /// never sees them (pawn.interaction fell back to the generic "trigger" action). Lift a wrapper object's
+        /// properties to the top level unless the tool's schema declares that key; explicit top-level keys win.
+        /// </summary>
+        internal static void UnwrapNestedArguments(JObject obj, string? parametersSchema)
+        {
+            JObject? declared = null;
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(parametersSchema))
+                    declared = JObject.Parse(parametersSchema!)["properties"] as JObject;
+            }
+            catch (Newtonsoft.Json.JsonException)
+            {
+                // Unparseable schema: treat as declaring nothing.
+            }
+
+            foreach (var key in ArgumentWrapperKeys)
+            {
+                if (declared?.ContainsKey(key) == true) continue;
+                if (obj[key] is not JObject nested) continue;
+                obj.Remove(key);
+                foreach (var prop in nested.Properties())
+                {
+                    if (!obj.ContainsKey(prop.Name))
+                        obj[prop.Name] = prop.Value;
+                }
+            }
         }
 
         private IReadOnlyList<IToolArgumentAdapter>? GetArgumentAdapters()

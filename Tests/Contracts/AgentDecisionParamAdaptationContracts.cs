@@ -83,6 +83,34 @@ namespace RimMind.Tests.Contracts
             Assert.NotEqual("force_rest", args.Value<string>("action"));
         }
 
+        [Fact]
+        public void NestedParamsWrapper_IsLiftedToTopLevelArguments()
+        {
+            // Live playthrough: {"params":{"action":"social_relax"}} reached pawn.interaction without its action and
+            // failed as the generic "trigger".
+            var tools = new ToolRegistry();
+            var interactionTool = new RecordingToolHandler("pawn_interaction_trigger");
+            tools.Register(interactionTool);
+            var executor = new MechanismActionExecutor(new GameMechanismRegistry(), tools, CoreAdapters);
+
+            executor.ExecuteDecision(new AgentDecision(ActionIntent: "pawn_interaction_trigger", Reason: "",
+                Param: "{\"params\":{\"action\":\"social_relax\",\"target_pawn_id\":\"9\"},\"target_pawn_id\":\"872\"}"), pawnId: 5);
+
+            var args = JObject.Parse(interactionTool.LastArgumentsJson!);
+            Assert.Equal("social_relax", args.Value<string>("action"));
+            Assert.Equal("872", args.Value<string>("target_pawn_id")); // explicit top-level key wins
+            Assert.Null(args["params"]);
+        }
+
+        [Fact]
+        public void WrapperKeyDeclaredBySchema_IsLeftInPlace()
+        {
+            var obj = JObject.Parse("{\"arguments\":{\"x\":1}}");
+            MechanismActionExecutor.UnwrapNestedArguments(obj, "{\"properties\":{\"arguments\":{\"type\":\"object\"}}}");
+            Assert.NotNull(obj["arguments"]);
+            Assert.Null(obj["x"]);
+        }
+
         private sealed class RecordingToolHandler : IToolHandler
         {
             public RecordingToolHandler(string id)
