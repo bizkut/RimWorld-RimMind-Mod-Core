@@ -31,6 +31,8 @@ namespace RimMind.Presentation.Api
 
             public static bool DebugLogging => GetSettingsProvider()?.DebugLogging == true;
             public static float ActivityFrequencyScale => GetSettingsProvider()?.ActivityFrequencyScale ?? 1.0f;
+            /// <summary>Player-configured completion budget (Settings → max tokens).</summary>
+            public static int MaxTokens => GetSettingsProvider()?.MaxTokens ?? RimMind.Application.Common.Models.RimMindDefaults.MaxTokens;
 
             public static int ScaleCooldown(int baseCooldownTicks, int minFloorTicks = 0)
                 => ActivityCooldownScaler.Scale(baseCooldownTicks, ActivityFrequencyScale, minFloorTicks);
