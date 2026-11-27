@@ -498,8 +498,21 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Job
         public static Result<bool, RimMindError> HandleForceRest(VersePawn pawn, MechanismWriteArgs args)
             => StartBuiltJob(pawn, TryBuildForceRestJob(pawn, args));
 
+        /// <summary>
+        /// Bed rest only when it helps: the colonist is tired (rest &lt; 50%) or the game says it needs medical rest
+        /// (wounds, sickness). Agents otherwise ordered rest over and over for "comfort 0%" or permanent scars, which
+        /// rest never fixes, and each order interrupted work.
+        /// </summary>
         private static Result<VerseJob, RimMindError> TryBuildForceRestJob(VersePawn pawn, MechanismWriteArgs args)
         {
+            float rest = pawn.needs?.rest?.CurLevelPercentage ?? 0f;
+            if (rest >= 0.5f && !HealthAIUtility.ShouldSeekMedicalRest(pawn))
+            {
+                return Result<VerseJob, RimMindError>.Err(RimMindErrors.InvalidAction("pawn.job",
+                    $"force_rest refused: {pawn.LabelShort} is not tired (rest {rest:P0}) and has nothing bed rest heals. " +
+                    "Scars are permanent and rest does not change them; comfort comes from chairs, beds and a warm room, " +
+                    "not from lying down. Let the colonist work, or build comfortable furniture or heating instead."));
+            }
             var bed = RestUtility.FindBedFor(pawn);
             var job = bed != null ? JobMaker.MakeJob(JobDefOf.LayDown, new LocalTargetInfo(bed)) : JobMaker.MakeJob(JobDefOf.LayDown, pawn.Position);
             return Result<VerseJob, RimMindError>.Ok(job);
