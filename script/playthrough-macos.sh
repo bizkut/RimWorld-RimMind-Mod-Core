@@ -15,6 +15,7 @@
 #        HARMONY_DIR       Harmony mod folder to install if Mods/Harmony is missing (e.g. a HarmonyRimWorld checkout)
 #        CONTROL=1         no-AI baseline: no PawnAgents activated (combine with MODULES=Core for no Advisor/Actions)
 #        ALL_AGENTS        default 1: every colonist gets a PawnAgent; 0 keeps the runner's one-agent-less split
+#        OVERSEER          default 1: enable the Advisor colony overseer (writes Mod_RimMind-Advisor settings); 0 = off
 # output: .playthrough/runs/<run-id>/ (report JSON, chronicle, Player.log); per-day colony stats printed at the end
 set -euo pipefail
 
@@ -105,6 +106,16 @@ cat > "$CFG/Mod_RimMind-Core_RimMindCoreMod.xml" <<XML
   </ModSettings>
 </SettingsBlock>
 XML
+if [[ " $MODULES " == *" Advisor "* ]]; then
+    cat > "$CFG/Mod_RimMind-Advisor_RimMindAdvisorMod.xml" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<SettingsBlock>
+  <ModSettings Class="RimMind.Advisor.Settings.RimMindAdvisorSettings">
+    <enableColonyOverseer>$([ "${OVERSEER:-1}" = 1 ] && echo True || echo False)</enableColonyOverseer>
+  </ModSettings>
+</SettingsBlock>
+XML
+fi
 
 # 5. Launch through LaunchServices (`open`); exec'ing the binary from a background shell hangs at boot.
 #    The game is found again by its unique run id; the runner auto-exits when done.
@@ -133,6 +144,7 @@ cp "$LOG" "$OUT/Player.log"
 say "output: $OUT"
 grep -E "\[RimMind-Playthrough\] Status" "$OUT/Player.log" | tail -1 || true
 say "exceptions: $(grep -c "Exception" "$OUT/Player.log" || true)"
+say "overseer: $(grep -c '\[RimMind-Overseer\] map .*: deciding' "$OUT/Player.log" || true) decisions, $(grep -cE '\[RimMind-Overseer\] map .* → ok' "$OUT/Player.log" || true) ok / $(grep -cE '\[RimMind-Overseer\] map .* → FAILED' "$OUT/Player.log" || true) failed tool calls"
 REPORT=$(ls "$OUT"/playthrough-"$DAYS"days-report.json 2>/dev/null | head -1)
 if [ -n "$REPORT" ]; then
     python3 - "$REPORT" <<'PY'
