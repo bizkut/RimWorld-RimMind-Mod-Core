@@ -104,11 +104,12 @@ namespace RimMind.Presentation.Agent
                 if (starving)
                 {
                     Raise(seen, scope, "starving", name, $"food {food!.CurLevelPercentage:P0}", now);
-                    // Someone carrying or treating a patient finishes that first unless close to death.
-                    bool helping = pawn.carryTracker?.CarriedThing is Pawn
-                        || pawn.CurJobDef == JobDefOf.Rescue || pawn.CurJobDef == JobDefOf.TendPatient
+                    // Someone carrying a person always finishes the carry (interrupting drops the patient); someone
+                    // treating a patient finishes first unless close to death.
+                    bool carrying = pawn.carryTracker?.CarriedThing is Pawn;
+                    bool helping = pawn.CurJobDef == JobDefOf.Rescue || pawn.CurJobDef == JobDefOf.TendPatient
                         || pawn.CurJobDef == JobDefOf.FeedPatient;
-                    if ((!helping || food.CurLevelPercentage < 0.05f) && Due("starving:" + name, now))
+                    if (!carrying && (!helping || food.CurLevelPercentage < 0.05f) && Due("starving:" + name, now))
                     {
                         FreeForForcedJob(pawn);
                         var result = JobActionDispatcher.HandleEatFood(pawn, new MechanismWriteArgs
@@ -180,8 +181,9 @@ namespace RimMind.Presentation.Agent
         }
 
         /// <summary>
-        /// Drops a carried item (never a carried person) and ends the current job so a forced job can start; the game
-        /// otherwise keeps a hauling colonist on its job ("did not start job ... current job: HaulToCell").
+        /// Drops a carried item and ends the current job so a forced job can start; the game otherwise keeps a hauling
+        /// colonist on its job ("did not start job ... current job: HaulToCell"). Callers never pass a colonist who is
+        /// carrying a person: ending that job would drop the patient.
         /// </summary>
         private static void FreeForForcedJob(Pawn pawn)
         {
@@ -214,6 +216,7 @@ namespace RimMind.Presentation.Agent
 
             var helper = colonists
                 .Where(p => p != patient && !p.Downed && !p.Drafted && !p.InMentalState
+                    && p.carryTracker?.CarriedThing is not Pawn
                     && !p.WorkTypeIsDisabled(WorkTypeDefOf.Doctor)
                     && p.CanReserveAndReach(patient, PathEndMode.Touch, Danger.Deadly))
                 .OrderBy(p => (p.needs?.food?.CurLevelPercentage ?? 1f) < StarvingFood ? 1 : 0)
