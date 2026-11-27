@@ -9,7 +9,8 @@
 #        MAX_TOKENS        default 4096 (reasoning models spend small budgets thinking)
 #        SPEED             Normal|Fast|Superfast|Ultrafast (RIMMIND_PLAYTHROUGH_SPEED; default Fast)
 #        HARMONY_DIR       Harmony mod folder to install if Mods/Harmony is missing (e.g. a HarmonyRimWorld checkout)
-# output: .playthrough/runs/<run-id>/ (report JSON, chronicle, Player.log)
+#        CONTROL=1         no-AI baseline: no PawnAgents activated (combine with MODULES=Core for no Advisor/Actions)
+# output: .playthrough/runs/<run-id>/ (report JSON, chronicle, Player.log); per-day colony stats printed at the end
 set -euo pipefail
 
 DAYS=${1:-3}
@@ -26,7 +27,7 @@ SPEED=${SPEED:-Fast}
 CFG="$HOME/Library/Application Support/RimWorld/Config"
 LOG="$HOME/Library/Logs/Ludeon Studios/RimWorld by Ludeon Studios/Player.log"
 WORK="$CORE/.playthrough"
-RUN_ID="pt-$(date +%Y%m%d-%H%M%S)-$(printf '%s' "$MODEL" | tr -c 'A-Za-z0-9.-' '_')"
+RUN_ID="pt-$(date +%Y%m%d-%H%M%S)-$( [ "${CONTROL:-0}" = 1 ] && printf control || printf '%s' "$MODEL" | tr -c 'A-Za-z0-9.-' '_')"
 OUT="$WORK/runs/$RUN_ID"
 
 say() { echo "[playthrough] $*"; }
@@ -101,10 +102,11 @@ XML
 # 5. Launch through LaunchServices (`open`); exec'ing the binary from a background shell hangs at boot.
 #    The game is found again by its unique run id; the runner auto-exits when done.
 START=$(date +%s)
-say "run $RUN_ID: $DAYS day(s) at $SPEED, $MODEL via $ENDPOINT, timeout ${TIMEOUT_MIN}m"
+say "run $RUN_ID: $DAYS day(s) at $SPEED, $MODEL via $ENDPOINT, control=${CONTROL:-0}, timeout ${TIMEOUT_MIN}m"
 open -n -a "$RW" \
     --env "RIMMIND_TEST_ENDPOINT=$ENDPOINT" --env "RIMMIND_TEST_MODEL=$MODEL" --env "RIMMIND_TEST_API_KEY=$API_KEY" \
     --env "RIMMIND_PLAYTHROUGH_OUTPUT_DIR=$OUT" --env "RIMMIND_PLAYTHROUGH_SPEED=$SPEED" --env "RIMMIND_PLAYTHROUGH_AUTO_EXIT=1" \
+    --env "RIMMIND_PLAYTHROUGH_CONTROL=${CONTROL:-0}" \
     --args -quicktest "-rimmind-playthrough=$RUN_ID" "-rimmind-playthrough-days=$DAYS"
 # RimWorld does not start -quicktest until its window has been activated once. `open -a` (no -n) activates the
 # running instance through LaunchServices; unlike System Events it needs no Accessibility permission.
@@ -122,6 +124,18 @@ cp "$LOG" "$OUT/Player.log"
 
 # 6. Summary.
 say "output: $OUT"
-grep -E "\[RimMind-Playthrough\] (Status|Day [0-9]+)" "$OUT/Player.log" | tail -15 || true
+grep -E "\[RimMind-Playthrough\] Status" "$OUT/Player.log" | tail -1 || true
 say "exceptions: $(grep -c "Exception" "$OUT/Player.log" || true)"
-ls "$OUT"
+REPORT=$(ls "$OUT"/playthrough-"$DAYS"days-report.json 2>/dev/null | head -1)
+if [ -n "$REPORT" ]; then
+    python3 - "$REPORT" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], encoding="utf-8-sig"))  # the runner writes a UTF-8 BOM
+print(f"{'day':>3} {'alive':>5} {'down':>4} {'mood':>5} {'food':>5} {'wealth':>7} {'res':>3} {'bills':>5} {'build':>5} {'host':>4} {'acts':>4} {'llm':>4}")
+for d in r.get("Days", []):
+    c = d.get("Colony") or {}
+    print(f"{d['DayNumber']:>3} {c.get('ColonistsAlive',0):>5} {c.get('ColonistsDowned',0):>4} {c.get('AverageMood',0):>5.2f} "
+          f"{c.get('FoodDays',0):>5.1f} {c.get('Wealth',0):>7.0f} {c.get('ResearchCompleted',0):>3} {c.get('ActiveBills',0):>5} "
+          f"{c.get('PendingConstruction',0):>5} {c.get('Hostiles',0):>4} {d.get('AgentActionsExecutedCount',0):>4} {d.get('LlmCallsCount',0):>4}")
+PY
+fi

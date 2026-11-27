@@ -105,6 +105,51 @@ namespace RimMind.Infrastructure.UI.DebugActions
         public double CacheHitRatio { get; set; }
         public string ScreenshotPath { get; set; } = string.Empty;
         public long DayComputeDurationMs { get; set; }
+        /// <summary>Colony outcome metrics at day end; compare AI runs against RIMMIND_PLAYTHROUGH_CONTROL=1 runs.</summary>
+        public PlaythroughColonyStats Colony { get; set; } = new();
+    }
+
+    /// <summary>Outcome metrics for judging whether the AI keeps the colony alive and growing.</summary>
+    public sealed class PlaythroughColonyStats
+    {
+        public int ColonistsAlive { get; set; }
+        public int ColonistsDowned { get; set; }
+        public float AverageMood { get; set; }
+        /// <summary>Human-edible nutrition on the map (forbidden included) / (colonists × 1.6 per day).</summary>
+        public float FoodDays { get; set; }
+        public float Wealth { get; set; }
+        public int ResearchCompleted { get; set; }
+        public int ActiveBills { get; set; }
+        /// <summary>Blueprints + frames on the map: construction the colony has planned but not finished.</summary>
+        public int PendingConstruction { get; set; }
+        public int Fires { get; set; }
+        public int Hostiles { get; set; }
+
+        public static PlaythroughColonyStats Capture(Map? map)
+        {
+            var stats = new PlaythroughColonyStats();
+            if (map == null) return stats;
+
+            var colonists = map.mapPawns.FreeColonistsSpawned;
+            stats.ColonistsAlive = colonists.Count;
+            stats.ColonistsDowned = colonists.Count(p => p.Downed);
+            var moods = colonists.Where(p => p.needs?.mood != null).Select(p => p.needs.mood.CurLevel).ToList();
+            stats.AverageMood = moods.Count > 0 ? moods.Average() : 0f;
+            float nutrition = map.listerThings.ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree)
+                .Where(t => !(t is Corpse) && t.def.IsNutritionGivingIngestible && t.def.ingestible.HumanEdible)
+                .Sum(t => t.GetStatValue(StatDefOf.Nutrition) * t.stackCount);
+            stats.FoodDays = colonists.Count > 0 ? nutrition / (colonists.Count * 1.6f) : 0f;
+            stats.Wealth = map.wealthWatcher.WealthTotal;
+            stats.ResearchCompleted = DefDatabase<ResearchProjectDef>.AllDefsListForReading.Count(r => r.IsFinished);
+            stats.ActiveBills = map.listerBuildings.allBuildingsColonist
+                .OfType<IBillGiver>()
+                .Sum(g => g.BillStack?.Bills.Count(b => !b.suspended) ?? 0);
+            stats.PendingConstruction = map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint).Count
+                + map.listerThings.ThingsInGroup(ThingRequestGroup.BuildingFrame).Count;
+            stats.Fires = map.listerThings.ThingsOfDef(ThingDefOf.Fire).Count;
+            stats.Hostiles = map.mapPawns.AllPawnsSpawned.Count(p => !p.Dead && !p.Downed && p.HostileTo(Faction.OfPlayer));
+            return stats;
+        }
     }
 
     public sealed class TenDayPlaythroughReport
@@ -743,8 +788,10 @@ namespace RimMind.Infrastructure.UI.DebugActions
                         Current.Game.playSettings.useWorkPriorities = true;
                     }
 
-                    int activeAgentTargetCount = colonists.Count >= 2
-                        ? Math.Max(1, colonists.Count - 1)
+                    // RIMMIND_PLAYTHROUGH_CONTROL=1: no-AI baseline through the same runner (no active PawnAgents).
+                    bool controlRun = Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_CONTROL") == "1";
+                    int activeAgentTargetCount = controlRun ? 0
+                        : colonists.Count >= 2 ? Math.Max(1, colonists.Count - 1)
                         : 1;
 
                     var modeColonist = new AgentModeId("colonist");
@@ -929,6 +976,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
                     });
                 }
 
+                report.Colony = PlaythroughColonyStats.Capture(Find.CurrentMap);
                 CollectTraceLogMetrics(report);
                 CollectRealAgentActions(colonists, dayStartTick, dayEndTick, report);
                 CollectRealDialogueEntries(dayStartTick, dayEndTick, report);
