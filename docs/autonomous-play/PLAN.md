@@ -28,7 +28,27 @@ CONTROL=1 MODULES=Core SPEED=Ultrafast script/playthrough-macos.sh 10 50   # no-
 | AI, 3 days, old parser (`pt-20261127-113652`) | mood ~0.9 vs control ~0.5, 74 actions (64 ok); no bills/construction |
 | AI + overseer, 1 day (`pt-20261127-150450`) | overseer: 2 decisions, 7 calls (4 ok); harvest 12 + chop 25 ok; grow zone ×2 and shelter room failed (placement anchor bug) |
 | AI + overseer, 1 day, placement fix (`pt-20261127-*` after Actions `255cf52`) | overseer: 3 decisions, 12 calls (10 ok): 46-cell rice zone, 5×5 shelter room (built same day), stockpile, stove + bed blueprints, work priorities for all 3; failed: `Haul` designation (unsupported), cooking bill before a stove existed. Agents: 14 decisions, 2 failed (`eat`, `PlantWork` — now aliased) |
-| AI 10-day run | 🔄 running next |
+| AI + overseer + agents, 10 days (`pt-20261127-154931-beam-free`) | 🔄 running — **worse than control so far**: Sheppy starved day 5 with 24–36 meals stored (trapped in his bedroom, see review), Urshed died day 6 after his agent drafted him "to confront" hostile drifters; both left unburied; Betty alone. Built: 2 bedrooms + shelter, 2 rice fields, stockpile, stove + bill, coolers; 0 research chosen |
+
+## Review (2026-11-27) — what needs improvement
+
+Evidence: the 10-day run above, its Player.log, day states and screenshots.
+
+| # | Problem | Evidence | Fix (workstream) |
+|---|---|---|---|
+| R1 | **Nobody notices a dying colonist.** Starvation alert for 2 in-game days, nothing reacted. | Sheppy food 0.00 on days 3–4 with 36/30 meals stored; "Starvation" alert both days | **Colony safety net** (deterministic, no LLM, every 250 ticks): invariants below; act first, then tell the overseer/agent. Highest priority. |
+| R2 | **Buildings can trap colonists.** No placement checks reachability; nothing knows doors/paths. | Sheppy inside his bedroom, area *Unrestricted*, `eat_food: no available food found` (food skipped only when forbidden/unreachable/reserved for him); passive coolers placed "near_base" at (118,108)/(113,106) next to the rooms | **Structure geometry for everyone** + **placement validation**: refuse placements that block a door or the only path; after each build, check every colonist ↔ stockpile/food ↔ bed ↔ map edge; trapped colonist = safety-net alarm (deconstruct/cancel the blocker). |
+| R3 | **Tools report OK without effect.** | `actions_eat_and_recreation` OK ~10× for Sheppy while he never ate | **Outcome verification**: success = the job started *and* the effect is observed (need rose, item built, zone exists) within N ticks; the real outcome goes back to the agent and into metrics. |
+| R4 | **Agents loop on the wrong need.** | Sheppy's agent: 8× "rest for comfort" before food; repeated identical eat calls after a failure | **Need hierarchy + repeat guard**: survival (food, bleeding, threat) before comfort/recreation in agent rules; same action ×3 without effect → escalate (overseer/safety net) and forbid repeating it. |
+| R5 | **Bad combat calls.** | Urshed drafted "to confront" several hostile drifters and died | **Threat assessment**: compare strength (count, weapons, health) before engaging; default flee to shelter; colony-level defense belongs to the overseer (draft all, defensive position), not single agents. |
+| R6 | **Colony gaps the overseer leaves open.** | "Unburied Corpses" triggered a decision but nothing was done (grave blocked by the 2-blueprint limit); no research ever selected; "Need defenses" all run; cooking had "no raw ingredients"; `ButcherTable` guessed wrong | **Overseer phase 2**: burial/corpse handling, research tool, defenses, food chain (hunt → butcher → cook); priority lanes in the blueprint limit (graves, beds, doors, food never blocked); resolve def names from the buildable list. |
+| R7 | **Tool calls still lost as `dialogue.free`.** | NPC-608/612: `{"tool_call":{…}}`, `{"tool_calls":[…]}`, `{"name","arguments"}`, bare args object | Extend reply-shape normalisation; count `dialogue.free` containing a tool name as a parser failure in metrics. |
+| R8 | **Run is only judged at the end.** | I found the death by reading logs after the fact | **Watchdog**: same invariants as R1 evaluated outside the game on the live event stream (dashboard alert panel + a monitor that notifies the operator); a postmortem per death (cause chain from events). |
+| R9 | **Exit criteria too weak.** | criteria "bills > 0, construction > 0" passed while 2 of 3 died | Score: deaths (and cause), days survived, starvation hours, trapped hours, unburied hours, research, wealth; several seeds per change. |
+
+Safety-net invariants (R1, R2, R8): colonist food < 15% while reachable food exists → force eat; colonist cannot reach food/bed/stockpile → find the blocker (blueprint, building, closed door) and cancel/deconstruct it; corpse of a colonist > 6 h → grave + bury (bypasses the blueprint limit); downed/bleeding → rescue + tend; mental break / no bed / fire / hostiles near a weak colonist → alert + standard response. Every intervention is logged and sent as an event (`alert`, `intervention`).
+
+**Structure geometry (R2): every model sees it.** The geography overview (whole map, ~10×10-cell blocks) is too coarse for doors. Add a **base plan view** next to it: the base bounding box at 1 cell per character — walls `#`, doors `D`, beds `b`, furniture/blocking `x`, blueprints `+`, stockpile `S`, growing `G`, colonists by initial — plus per-room facts (doors, connected to outside yes/no, colonists inside). Shared by colonists' agents, the Advisor and the overseer (stable L1 part; rebuilt when buildings change), and shown on the web UI map.
 
 ## Done
 
@@ -96,12 +116,16 @@ adapted after failures (smaller zone → room → designations).
    acting colonist → colonists → map center); Actions tests 104/104.
 2. ✅ **Overseer turn budget** — Advisor `9d365ae`: a query-only turn earns one extra feedback round.
 3. ✅ **Aliases** — Core `2f3fcd3`: bare `eat`/`draft`/`undraft`, work type `PlantWork`/`farming` → Growing.
-4. 🔄 **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
-5. 🔄 **Map geography** (below).
-6. 🔄 **Web UI with live data stream** (below).
-7. ⏭ **Colony master plan / base layout** (below) — waiting on three choices.
-8. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
-9. ⏭ **DLC support** (below): context first, then tools, per DLC.
+4. 🔄 **10-day AI run** — finish, write the postmortem, compare with control.
+5. 🔄 **Map geography** + **Web UI** (below) — code done; in-game check pending.
+6. ⏭ **P0 Colony safety net** (R1) + **reachability / trapped-colonist check** (R2) + **watchdog alerts** (R8).
+7. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
+8. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
+   shapes (R7).
+9. ⏭ **P1 Overseer phase 2** (R6): burial, research tool, defenses, food chain, blueprint priority lanes.
+10. ⏭ **Colony master plan / base layout** (below) — waiting on three choices; uses the base plan view.
+11. ⏭ **Scorecard + multi-seed evaluation** (R9).
+12. ⏭ **DLC support** (below): context first, then tools, per DLC.
 
 ## Map geography
 

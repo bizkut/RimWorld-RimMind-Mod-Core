@@ -66,5 +66,13 @@ One JSON object per line, UTF-8, append-only. Unknown fields must be ignored by 
 ### `letter` — a RimWorld letter arrived (raids, deaths, quests, …)
 `{ "label": "Raid", "kind": "ThreatBig", "text": "first 200 chars" }`
 
+### `alert` — a colony safety invariant is violated (raised once, then `"resolved": true` when it clears)
+`{ "code": "starving_with_food|trapped|unburied_colonist|downed|bleeding|mental_break|no_bed|fire|threat",
+   "pawn": "Sheppy", "severity": "critical|warning", "detail": "food 0.00, 36 meals unreachable", "resolved": false }`
+
+### `intervention` — the safety net acted (no LLM involved)
+`{ "code": "trapped", "pawn": "Sheppy", "action": "deconstruct_blocker", "target": "PassiveCooler@(118,108)",
+   "ok": true, "detail": "path to stockpile restored" }`
+
 ### `session_end`
 `{ "reason": "completed|quit" }`
