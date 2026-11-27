@@ -20,3 +20,6 @@ TestResults/
 # OS
 .DS_Store
 Thumbs.db
+
+# Local playthrough builds and reports (script/playthrough-macos.sh)
+.playthrough/
