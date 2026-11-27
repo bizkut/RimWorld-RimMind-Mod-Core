@@ -234,6 +234,18 @@ namespace RimMind.Presentation.Context
                 stalenessTicks: 3000,
                 cacheScope: CacheScope.Map));
 
+            // Whole-map overview (terrain, fertility, water, rock, ore, base, zones + points of interest) so colonists
+            // and the Advisor know where things are. Recomputed at most once per in-game day: stable L1 prefix.
+            registry.Register(new ContextProviderDef(
+                key: "map_geography",
+                layer: ContextLayer.L1_Baseline,
+                priority: 0.9f,
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId,
+                    pawn => pawn.Map == null ? null : MapGeographyBuilder.Get(pawn.Map).Text, ct),
+                ownerMod: RimMindOwnerConsts.CoreModId,
+                stalenessTicks: MapGeographyBuilder.RefreshTicks,
+                cacheScope: CacheScope.Map));
+
             registry.Register(new ContextProviderDef(
                 key: "pawn_base_info",
                 layer: ContextLayer.L1_Baseline,

@@ -70,7 +70,7 @@ namespace RimMind.Application.Features.Context
                     {"combat_status", 0.95f}, {"target_info", 0.9f}, {"task_progress", 0.85f},
                     {"nearby_pawns", 0.7f}, {"colony_status", 0.7f}, {"colony_resources", 0.75f}, {"current_area", 0.5f},
                     {"weather", 0.25f}, {"time_of_day", 0.3f}, {"season", 0.15f},
-                    {"map_structure", 0.45f}, {"pawn_base_info", 0.4f}, {"fixed_relations", 0.5f},
+                    {"map_structure", 0.45f}, {"map_geography", 0.6f}, {"pawn_base_info", 0.4f}, {"fixed_relations", 0.5f},
                     {"ideology", 0.3f}, {"skills_summary", 0.7f}, {"memory_pawn", 0.6f},
                     {"working_memory", 0.8f}, {"memory_narrator", 0.2f},
                     {"personality_profile", 0.65f}, {"personality_state", 0.65f}, {"personality_shaping", 0.55f},
@@ -119,7 +119,7 @@ namespace RimMind.Application.Features.Context
                     {"combat_status", 0.8f}, {"target_info", 0.7f}, {"task_progress", 0.3f},
                     {"nearby_pawns", 0.5f}, {"colony_status", 0.9f}, {"colony_resources", 0.85f}, {"current_area", 0.4f},
                     {"weather", 0.6f}, {"time_of_day", 0.5f}, {"season", 0.7f},
-                    {"map_structure", 0.8f}, {"pawn_base_info", 0.3f}, {"fixed_relations", 0.3f},
+                    {"map_structure", 0.8f}, {"map_geography", 0.6f}, {"pawn_base_info", 0.3f}, {"fixed_relations", 0.3f},
                     {"ideology", 0.4f}, {"skills_summary", 0.2f}, {"memory_pawn", 0.3f},
                     {"working_memory", 0.2f}, {"memory_narrator", 0.9f}
                 });
