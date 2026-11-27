@@ -28,7 +28,7 @@ CONTROL=1 MODULES=Core SPEED=Ultrafast script/playthrough-macos.sh 10 50   # no-
 | AI, 3 days, old parser (`pt-20261127-113652`) | mood ~0.9 vs control ~0.5, 74 actions (64 ok); no bills/construction |
 | AI + overseer, 1 day (`pt-20261127-150450`) | overseer: 2 decisions, 7 calls (4 ok); harvest 12 + chop 25 ok; grow zone ×2 and shelter room failed (placement anchor bug) |
 | AI + overseer, 1 day, placement fix (`pt-20261127-*` after Actions `255cf52`) | overseer: 3 decisions, 12 calls (10 ok): 46-cell rice zone, 5×5 shelter room (built same day), stockpile, stove + bed blueprints, work priorities for all 3; failed: `Haul` designation (unsupported), cooking bill before a stove existed. Agents: 14 decisions, 2 failed (`eat`, `PlantWork` — now aliased) |
-| AI + overseer + agents, 10 days (`pt-20261127-154931-beam-free`) | 🔄 running — **worse than control so far**: Sheppy starved day 5 with 24–36 meals stored (trapped in his bedroom, see review), Urshed died day 6 after his agent drafted him "to confront" hostile drifters; both left unburied; Betty alone. Built: 2 bedrooms + shelter, 2 rice fields, stockpile, stove + bill, coolers; 0 research chosen |
+| AI + overseer + agents, 10 days (`pt-20261127-154931-beam-free`) | ❌ **worse than control**: Sheppy starved day 5 with 24–36 meals stored (sealed in his bedroom, R2), Urshed died day 6 after his agent drafted him "to confront" hostile drifters; both left unburied; Betty alone. Run **stalled on day 8**: a "Transport pod crash: Rin" quest dialog paused the game and nothing could answer it (now fixed, below). Built: 2 bedrooms + shelter, 2 rice fields, stockpile, stove + bill, coolers; 0 research chosen |
 
 ## Review (2026-11-27) — what needs improvement
 
@@ -117,16 +117,30 @@ adapted after failures (smaller zone → room → designations).
    acting colonist → colonists → map center); Actions tests 104/104.
 2. ✅ **Overseer turn budget** — Advisor `9d365ae`: a query-only turn earns one extra feedback round.
 3. ✅ **Aliases** — Core `2f3fcd3`: bare `eat`/`draft`/`undraft`, work type `PlantWork`/`farming` → Growing.
-4. 🔄 **10-day AI run** — finish, write the postmortem, compare with control.
-5. 🔄 **Map geography** + **Web UI** (below) — code done; in-game check pending.
-6. ⏭ **P0 Colony safety net** (R1) + **reachability / trapped-colonist check** (R2) + **watchdog alerts** (R8).
-7. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
-8. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
-   shapes (R7).
-9. ⏭ **P1 Overseer phase 2** (R6): burial, research tool, defenses, food chain, blueprint priority lanes.
-10. ⏭ **Colony master plan / base layout** (below) — waiting on three choices; uses the base plan view.
-11. ⏭ **Scorecard + multi-seed evaluation** (R9).
-12. ⏭ **DLC support** (below): context first, then tools, per DLC.
+4. ✅ **10-day AI run** — done (Baselines; stalled day 8 on a popup); review R1–R10 above.
+5. ✅ **Map geography** (Core provider `map_geography` in L1 for colonists/Advisor, overseer L1) and **Web UI**
+   (`events.ndjson` exporter + `tools/dashboard`) — verified in game (`pt-20261127-170313`): 25×25 grid + points of
+   interest, all event types streamed.
+6. ✅ **Popups answered by the overseer** — Core `world.dialog` mechanism (`PendingChoices`: open event dialogs —
+   exactly `Dialog_NodeTree`, never `Dialog_MessageBox` confirmations or specialised subclasses — and decision letters;
+   option chosen through the option's own handler, so Accept / Reject / Jump to location / Postpone all work) → tools
+   `world_dialog_query` / `world_dialog_trigger` (world-admin scope: overseer only). The overseer checks every real
+   second (also while a popup pauses the game), lists pending choices in L2, answers within 2 decisions or closes the
+   popup so the game never stays frozen; a stuck request is released after 5 real minutes. Verified in game: "Wanderer
+   joins" letter → Accept → colonist joined; an open, game-pausing joiner dialog → Accept → game ticking again.
+   Runner no longer force-closes event dialogs while the overseer is on.
+7. ✅ **Interim room fix (R2)** — Actions `PlanRoomProjectCompositeTool`: every room keeps a free walkable one-cell
+   ring (rooms never share walls) and its door goes on the side facing the base whose outside cell is reachable.
+   Full layout still comes from the master plan.
+8. ⏭ **P0 Colony safety net** (R1) + **reachability / trapped-colonist check** (R2) + **watchdog alerts** (R8).
+9. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
+10. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
+    shapes (R7).
+11. ⏭ **P1 Overseer phase 2** (R6): burial, research tool, defenses, food chain, blueprint priority lanes; quests
+    (accept/decline offers in the Quests tab, not popups).
+12. ⏭ **Colony master plan / base layout** (below) — waiting on three choices; uses the base plan view.
+13. ⏭ **Scorecard + multi-seed evaluation** (R9).
+14. ⏭ **DLC support** (below): context first, then tools, per DLC.
 
 ## Map geography
 
