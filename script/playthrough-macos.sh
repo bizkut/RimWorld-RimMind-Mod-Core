@@ -125,6 +125,7 @@ open -n -a "$RW" \
     --env "RIMMIND_TEST_ENDPOINT=$ENDPOINT" --env "RIMMIND_TEST_MODEL=$MODEL" --env "RIMMIND_TEST_API_KEY=$API_KEY" \
     --env "RIMMIND_PLAYTHROUGH_OUTPUT_DIR=$OUT" --env "RIMMIND_PLAYTHROUGH_SPEED=$SPEED" --env "RIMMIND_PLAYTHROUGH_AUTO_EXIT=1" \
     --env "RIMMIND_PLAYTHROUGH_CONTROL=${CONTROL:-0}" --env "RIMMIND_PLAYTHROUGH_ALL_AGENTS=${ALL_AGENTS:-1}" \
+    --env "RIMMIND_LIVE_DIR=$OUT" \
     --args -quicktest "-rimmind-playthrough=$RUN_ID" "-rimmind-playthrough-days=$DAYS"
 # RimWorld does not start -quicktest until its window has been activated once. `open -a` (no -n) activates the
 # running instance through LaunchServices; unlike System Events it needs no Accessibility permission.

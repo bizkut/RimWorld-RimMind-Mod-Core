@@ -77,6 +77,27 @@ namespace RimMind.Application.Features.Pipeline.Unified
             }
 
             _log?.Message($"[UnifiedTelemetry] Request {context.Envelope?.RequestId} completed in {elapsed:F0}ms");
+            EmitLiveEvent(context, elapsed);
+        }
+
+        private static void EmitLiveEvent(LlmRequestContext context, double elapsed)
+        {
+            if (!Telemetry.LiveEvents.Enabled) return;
+            var envelope = context.Envelope;
+            var ok = context.Result != null && context.Result.Value.IsOk;
+            var response = ok ? context.Result!.Value.Value : null;
+            Telemetry.LiveEvents.Emit("llm", new JObject
+            {
+                ["source"] = $"mod:{envelope?.ModId ?? "unknown"} | scenario:{envelope?.ScenarioId ?? "unknown"} | npc:{envelope?.NpcId ?? "none"}",
+                ["ok"] = ok,
+                ["latency_ms"] = (int)elapsed,
+                ["prompt_tokens"] = response?.PromptTokens ?? 0,
+                ["cached_tokens"] = response?.CachedTokens ?? 0,
+                ["completion_tokens"] = response?.CompletionTokens ?? 0,
+                ["error"] = ok ? null
+                    : context.Result != null && context.Result.Value.IsErr ? LogSecretRedactor.ForLog(context.Result.Value.Error.Message)
+                    : context.ShortCircuitReason,
+            });
         }
 
         private static int ResolveToolCallCount(LlmRequestContext context)
