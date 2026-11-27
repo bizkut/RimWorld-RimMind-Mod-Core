@@ -110,6 +110,7 @@ namespace RimMind.Presentation.Agent
                         || pawn.CurJobDef == JobDefOf.FeedPatient;
                     if ((!helping || food.CurLevelPercentage < 0.05f) && Due("starving:" + name, now))
                     {
+                        FreeForForcedJob(pawn);
                         var result = JobActionDispatcher.HandleEatFood(pawn, new MechanismWriteArgs
                         {
                             MechanismId = "pawn.job", PawnId = pawn.thingIDNumber, Action = "eat_food",
@@ -178,6 +179,19 @@ namespace RimMind.Presentation.Agent
             Log.Message($"[RimMind-Safety] {action} for {code} {subject}{(target != null ? " → " + target : string.Empty)}: {(ok ? "ok" : "failed")} {detail}");
         }
 
+        /// <summary>
+        /// Drops a carried item (never a carried person) and ends the current job so a forced job can start; the game
+        /// otherwise keeps a hauling colonist on its job ("did not start job ... current job: HaulToCell").
+        /// </summary>
+        private static void FreeForForcedJob(Pawn pawn)
+        {
+            var carried = pawn.carryTracker?.CarriedThing;
+            if (carried != null && carried is not Pawn)
+                pawn.carryTracker!.TryDropCarriedThing(pawn.Position, ThingPlaceMode.Near, out _);
+            if (pawn.CurJob != null)
+                pawn.jobs.EndCurrentJob(JobCondition.InterruptForced, startNewJob: false);
+        }
+
         private enum HelpKind { Rescue, Tend, Feed }
 
         /// <summary>
@@ -221,6 +235,7 @@ namespace RimMind.Presentation.Agent
                 }
                 var feed = JobMaker.MakeJob(JobDefOf.FeedPatient, foodSource, patient);
                 feed.count = FoodUtility.WillIngestStackCountOf(patient, foodDef, FoodUtility.GetNutrition(patient, foodSource, foodDef));
+                FreeForForcedJob(helper);
                 var fed = JobActionDispatcher.StartJobVerified(helper, feed);
                 Intervene(code, name, action, helperName, fed.IsOk, fed.IsOk ? "bringing food" : fed.Error.Message);
                 return;
@@ -231,6 +246,7 @@ namespace RimMind.Presentation.Agent
                 MechanismId = "pawn.job", PawnId = helper.thingIDNumber, Action = kind == HelpKind.Rescue ? "rescue_pawn" : "tend_pawn",
                 Params = new Dictionary<string, string> { ["target_pawn_id"] = patient.thingIDNumber.ToString() },
             };
+            FreeForForcedJob(helper);
             var result = kind == HelpKind.Rescue ? JobActionDispatcher.HandleRescuePawn(helper, args) : JobActionDispatcher.HandleTendPawn(helper, args);
             Intervene(code, name, action, helperName, result.IsOk, result.IsOk ? "on the way" : result.Error.Message);
         }
