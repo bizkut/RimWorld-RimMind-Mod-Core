@@ -139,7 +139,12 @@ adapted after failures (smaller zone → room → designations).
    limit). `alert` / `intervention` events; active alerts trigger an overseer decision and appear in its L2
    (`[colony_alerts]`). Verified in game (`pt-20261127-174850`): sealed + starving colonist freed and fed, killed
    colonist buried. Downed/bleeding paths not yet exercised in game. Watchdog alerts on the dashboard: next.
-9. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
+9. 🔄 **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths). Done: Core
+   `BasePlanViewBuilder` — base area at 1 char/cell (`#` wall, `D` door, `b` bed, `x` furniture, `+` blueprint, `S`/`G`
+   zones, `.` indoor, `,` outdoor) + rooms with size, doors and "connected to outside" (sealed rooms flagged); context
+   provider `base_plan` (L1, rebuilt when buildings/blueprints/zones change) for colonists and Advisor, and in the
+   overseer's L1. Room placement already keeps a free ring and a reachable door (item 7). Pending: in-game check;
+   validation for single buildings (`place_blueprint`) that could block a door.
 10. 🔄 **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
     shapes (R7). Done (Actions `d053c1f`): `eat_and_recreation` / `stabilize_rest` refuse rest below 30% food and eat
     instead (with a note); a failed eat is reported, not masked by rest. Seen in the 10-day run: agents ordered rest
