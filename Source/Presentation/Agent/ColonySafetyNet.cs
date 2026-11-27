@@ -210,6 +210,11 @@ namespace RimMind.Presentation.Agent
             Log.Message($"[RimMind-Safety] {action} for {code} {subject}{(target != null ? " → " + target : string.Empty)}: {(ok ? "ok" : "failed")} {detail}");
         }
 
+        /// <summary>Any hostile, able pawn within 15 cells (manhunters included).</summary>
+        private static bool HostileNear(Map map, IntVec3 cell) =>
+            map.mapPawns.AllPawnsSpawned.Any(p => !p.Dead && !p.Downed && p.HostileTo(Faction.OfPlayer)
+                && p.Position.DistanceToSquared(cell) <= 15 * 15);
+
         /// <summary>
         /// Drops a carried item and ends the current job so a forced job can start; the game otherwise keeps a hauling
         /// colonist on its job ("did not start job ... current job: HaulToCell"). Callers never pass a colonist who is
@@ -244,14 +249,31 @@ namespace RimMind.Presentation.Agent
                 return;
             if (!Due(code + ":" + action + ":" + name, now)) return;
 
+            bool Able(Pawn p) => p != patient && !p.Downed && !p.InMentalState
+                && p.carryTracker?.CarriedThing is not Pawn
+                && !p.WorkTypeIsDisabled(WorkTypeDefOf.Doctor)
+                && p.CanReserveAndReach(patient, PathEndMode.Touch, Danger.Deadly);
             var helper = colonists
-                .Where(p => p != patient && !p.Downed && !p.Drafted && !p.InMentalState
-                    && p.carryTracker?.CarriedThing is not Pawn
-                    && !p.WorkTypeIsDisabled(WorkTypeDefOf.Doctor)
-                    && p.CanReserveAndReach(patient, PathEndMode.Touch, Danger.Deadly))
+                .Where(p => !p.Drafted && Able(p))
                 .OrderBy(p => (p.needs?.food?.CurLevelPercentage ?? 1f) < StarvingFood ? 1 : 0)
                 .ThenBy(p => p.Position.DistanceToSquared(patient.Position))
                 .FirstOrDefault();
+
+            // Nobody free: undraft the nearest drafted colonist, but only when no hostile is close to them or the
+            // patient (agents often leave colonists drafted after a fight; drafted colonists take no jobs).
+            if (helper == null)
+            {
+                var drafted = colonists
+                    .Where(p => p.Drafted && Able(p) && !HostileNear(map, p.Position) && !HostileNear(map, patient.Position))
+                    .OrderBy(p => p.Position.DistanceToSquared(patient.Position))
+                    .FirstOrDefault();
+                if (drafted != null)
+                {
+                    drafted.drafter.Drafted = false;
+                    helper = drafted;
+                    Intervene(code, name, "undraft_helper", drafted.Name?.ToStringShort ?? drafted.LabelShort, true, "no hostiles nearby");
+                }
+            }
             if (helper == null)
             {
                 Intervene(code, name, action, null, false, "no able colonist can reach them");
