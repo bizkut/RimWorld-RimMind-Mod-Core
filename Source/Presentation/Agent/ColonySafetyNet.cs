@@ -125,7 +125,7 @@ namespace RimMind.Presentation.Agent
             foreach (var corpse in map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse).OfType<Corpse>().ToList())
             {
                 var dead = corpse.InnerPawn;
-                if (dead == null || dead.Faction != Faction.OfPlayer || !corpse.Spawned) continue;
+                if (dead == null || dead.Faction != Faction.OfPlayer || !dead.RaceProps.Humanlike || !corpse.Spawned) continue;
                 if (!CorpseFirstSeen.TryGetValue(corpse.thingIDNumber, out int first))
                     CorpseFirstSeen[corpse.thingIDNumber] = first = now;
                 if (now - first < UnburiedTicks) continue;
