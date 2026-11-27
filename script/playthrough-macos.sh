@@ -6,6 +6,10 @@
 # env:   RIMWORLD_DIR      default /Applications/RimWorld.app
 #        MODULES           default "Core Actions Advisor" (sibling checkouts named RimMind-<M> or RimWorld-RimMind-Mod-<M>)
 #        ENDPOINT MODEL API_KEY   OpenAI-compatible endpoint (base URL ending in /v1), model, key (placeholder ok if keyless)
+#                          Default key "oc_sk_local-proxy": the oc_sk_ prefix makes OpenCodeHeaderDecorator send
+#                          x-opencode-session: rimmind-<NpcId>, one session per pawn, through a local OpenCode proxy
+#                          (which substitutes its own upstream key). Without it the proxy guesses sessions from the
+#                          prompt and every PawnAgent shares one session.
 #        MAX_TOKENS        default 4096 (reasoning models spend small budgets thinking)
 #        SPEED             Normal|Fast|Superfast|Ultrafast (RIMMIND_PLAYTHROUGH_SPEED; default Fast)
 #        HARMONY_DIR       Harmony mod folder to install if Mods/Harmony is missing (e.g. a HarmonyRimWorld checkout)
@@ -21,7 +25,7 @@ RW=${RIMWORLD_DIR:-/Applications/RimWorld.app}
 MODULES=${MODULES:-"Core Actions Advisor"}
 ENDPOINT=${ENDPOINT:-http://127.0.0.1:8787/v1}
 MODEL=${MODEL:-beam-free}
-API_KEY=${API_KEY:-sk-local}
+API_KEY=${API_KEY:-oc_sk_local-proxy}
 MAX_TOKENS=${MAX_TOKENS:-4096}
 SPEED=${SPEED:-Fast}
 CFG="$HOME/Library/Application Support/RimWorld/Config"
@@ -48,7 +52,9 @@ done
 for m in $MODULES; do
     proj=$(ls "$WORK/build/RimMind-$m/Source/"*.csproj | head -1)
     say "building RimMind-$m"
-    if ! dotnet build "$proj" -c Release -nologo -v q -p:GameVersion=1.6 > "$WORK/build/build-$m.log" 2>&1; then
+    # No node reuse / shared compiler: otherwise MSBuild and VBCSCompiler daemons outlive the build.
+    if ! dotnet build "$proj" -c Release -nologo -v q -p:GameVersion=1.6 -nodeReuse:false -p:UseSharedCompilation=false \
+            > "$WORK/build/build-$m.log" 2>&1; then
         grep -E "error" "$WORK/build/build-$m.log" | sort -u | head -20; say "build failed: RimMind-$m"; exit 1
     fi
 done
