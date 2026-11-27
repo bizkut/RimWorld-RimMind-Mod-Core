@@ -97,7 +97,55 @@ adapted after failures (smaller zone → room → designations).
 2. ✅ **Overseer turn budget** — Advisor `9d365ae`: a query-only turn earns one extra feedback round.
 3. ✅ **Aliases** — Core `2f3fcd3`: bare `eat`/`draft`/`undraft`, work type `PlantWork`/`farming` → Growing.
 4. 🔄 **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
-5. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
+5. 🔄 **Map geography** (below).
+6. 🔄 **Web UI with live data stream** (below).
+7. ⏭ **Colony master plan / base layout** (below) — waiting on three choices.
+8. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
+
+## Map geography
+
+Today the models only see biome + map size, a rooms/worktables list (`MapContextBuilder.BuildStaticMapTopology`), and
+the overseer's query tool returns a local ASCII snapshot (≤ 32 cells around the base: indoor/outdoor/blocked only — no
+terrain, fertility, water or ore). Nobody sees the whole map.
+
+- `MapGeographyBuilder` (Core, next to `MapContextBuilder`): ~24×24 overview grid of the map (one symbol per block:
+  water, mountain/rock, rich soil, soil, poor/sand, marsh, trees, ore, unexplored; base, colonists, stockpiles,
+  growing zones) with coordinates, plus points of interest with coordinates (base center, colonists, largest fertile
+  area near the base, largest open flat buildable area, ore clusters, water, mountain edge, map exits, hostiles).
+  ~1.5k chars. Text form for prompts, structured form for the web UI map.
+- Prompt placement: stable L1 (recomputed about once per in-game day) so prompt caching holds.
+- Consumers: new Core context provider `map_geography` (L1, map-scoped) weighted into `Decision`, `agent_decision`,
+  `advisor_decision` (colonists + Advisor); the overseer adds it to its own L1.
+- Not doing: free target coordinates in placement tools (would scatter buildings). Placement goes through the master
+  plan instead.
+
+## Colony master plan / base layout
+
+Problem: `plan_room_project` takes the first clear square around the anchor and `manage_zone` the best open rectangle
+near it, so buildings scatter and never share walls (first overseer run: room at (158,102), stockpile (140,122),
+fields (136,112)). The overseer decides *what* to build; code decides *where* from a persisted layout.
+
+- Base site chosen once from geography: flat, buildable, unfogged, near colonists, away from water/marsh/best farmland.
+- Base block on a grid: fixed-size rooms sharing walls, corridor with doors; districts — bedroom row; kitchen → freezer
+  → storage; workshop row; grows row by row. Outside: farm district on the nearest large fertile area, yard (outdoor
+  stockpile, power), defense line toward the map entry.
+- Plot-based placement: `room_type` → next free plot in its district; reserved plots block other placements; out-of-plan
+  placements refused with a reason. Furniture keeps the existing cluster solver inside rooms.
+- Plan (plots: built / under construction / free) in the geography context and the web UI map overlay.
+- Open choices: room module size (5×5 default), central corridor vs rooms opening onto each other, prefer mountain edge.
+
+## Web UI
+
+Live view of a run or a normal game. Contract: [`EVENTS.md`](EVENTS.md).
+
+1. **Event exporter** (Core): append-only `events.ndjson` — hourly snapshots (colony stats, colonists with positions),
+   geography, agent/overseer decisions and tool results, LLM requests (latency, tokens, cache), letters/deaths.
+   Written to `RIMMIND_LIVE_DIR` (playthrough sets it to the run folder) or the game's save-data `RimMind/Live`.
+2. **Dashboard** (`tools/dashboard`): local server tails event files and streams them to the browser (SSE); replays past
+   runs. Panels: run header, colony vital signs (with control-run overlay), exit criteria, colonists, overseer, decision
+   feed with per-tool success rates, AI health/cost, live map from the geography grid, daily screenshots, run comparison.
+3. **Controls** (later): pause/speed, force overseer decision, player directives, agent toggles, approvals — through a
+   command file polled on the main thread; every control logged as a player intervention.
 
 ## Backlog
 
