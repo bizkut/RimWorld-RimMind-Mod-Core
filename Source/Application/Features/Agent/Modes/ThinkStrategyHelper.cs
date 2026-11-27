@@ -172,7 +172,12 @@ public static class ThinkStrategyHelper
             ActionIntent = json!.action,
             Reason = json.reason ?? "",
             TargetPawnId = json.target,
-            Param = json.param,
+            // Models often send param as a JSON object; DecisionMapper.ParseParam expects JSON text either way.
+            Param = json.param == null || json.param.Type == Newtonsoft.Json.Linq.JTokenType.Null
+                ? null
+                : json.param.Type == Newtonsoft.Json.Linq.JTokenType.String
+                    ? json.param.ToString()
+                    : json.param.ToString(Newtonsoft.Json.Formatting.None),
             WantsMoreToolCalls = false,
         });
     }
@@ -261,7 +266,7 @@ public static class ThinkStrategyHelper
         public string action = "";
         public string? reason;
         public string? target;
-        public string? param;
+        public Newtonsoft.Json.Linq.JToken? param;
 #pragma warning restore CS0649
     }
 }

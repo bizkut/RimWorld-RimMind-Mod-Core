@@ -329,6 +329,28 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal("force_rest", parsed.Value.ActionIntent);
                     Assert.Equal("tired", parsed.Value.Reason);
                 }),
+                ("object param is kept as JSON text instead of degrading to dialogue", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"action\":\"actions.designate_resources\",\"reason\":\"food low\",\"param\":{\"designation_type\":\"Harvest\",\"max_count\":15}}"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("actions.designate_resources", parsed.Value.ActionIntent);
+                    Assert.Equal("food low", parsed.Value.Reason);
+                    var param = Newtonsoft.Json.Linq.JObject.Parse(parsed.Value.Param!);
+                    Assert.Equal("Harvest", (string?)param["designation_type"]);
+                    Assert.Equal(15, (int)param["max_count"]!);
+                }),
+                ("string param is passed through unchanged", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "<Action>{\"action\":\"set_work_priority\",\"param\":\"{\\\"priority\\\":1}\"}</Action>"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("{\"priority\":1}", parsed.Value.Param);
+                }),
                 ("plain text becomes free dialogue", () =>
                 {
                     var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse { Content = "hello" });
