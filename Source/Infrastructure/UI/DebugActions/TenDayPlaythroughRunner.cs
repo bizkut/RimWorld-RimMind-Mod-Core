@@ -694,7 +694,7 @@ namespace RimMind.Infrastructure.UI.DebugActions
                     }
                 }
 
-                if (Find.TickManager != null) Find.TickManager.CurTimeSpeed = previousSpeed == TimeSpeed.Paused ? TimeSpeed.Ultrafast : previousSpeed;
+                if (Find.TickManager != null) Find.TickManager.CurTimeSpeed = previousSpeed == TimeSpeed.Paused ? PlaythroughSpeed : previousSpeed;
             }
 
             private void SeedExistingTraceEntries()
@@ -815,15 +815,31 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 return colonists;
             }
 
+            /// <summary>
+            /// Run speed: Ultrafast by default; RIMMIND_PLAYTHROUGH_SPEED=Normal|Fast|Superfast|Ultrafast overrides it so
+            /// slow (e.g. reasoning) models can be measured at a pace where their decisions still arrive in time.
+            /// </summary>
+            private static TimeSpeed PlaythroughSpeed
+            {
+                get
+                {
+                    string? env = Environment.GetEnvironmentVariable("RIMMIND_PLAYTHROUGH_SPEED");
+                    return !string.IsNullOrWhiteSpace(env) && Enum.TryParse(env!.Trim(), ignoreCase: true, out TimeSpeed speed) && speed != TimeSpeed.Paused
+                        ? speed
+                        : TimeSpeed.Ultrafast;
+                }
+            }
+
             private IEnumerator AdvanceDayTicksRoutine(int day, int dayStartTick, int dayEndTick)
             {
                 if (Find.TickManager == null) yield break;
 
-                // Native RimWorld time flow only (TimeSpeed.Ultrafast, as a player pressing "4" in dev mode).
+                // Native RimWorld time flow only (Ultrafast by default, as a player pressing "4" in dev mode).
                 // No manual DoSingleTick stacking: the game must not outrun what a real session allows,
                 // otherwise PawnAgent LLM decisions arrive days late and the test stops reflecting play.
                 UnityEngine.Application.runInBackground = true;
-                Find.TickManager.CurTimeSpeed = TimeSpeed.Ultrafast;
+                TimeSpeed speed = PlaythroughSpeed;
+                Find.TickManager.CurTimeSpeed = speed;
                 int lastMaintenanceTick = dayStartTick;
 
                 while (Find.TickManager.TicksGame < dayEndTick)
@@ -836,9 +852,9 @@ namespace RimMind.Infrastructure.UI.DebugActions
                         AutoApprovePendingOverlayRequests(nowTick);
                     }
 
-                    if (Find.TickManager.CurTimeSpeed != TimeSpeed.Ultrafast)
+                    if (Find.TickManager.CurTimeSpeed != speed)
                     {
-                        Find.TickManager.CurTimeSpeed = TimeSpeed.Ultrafast;
+                        Find.TickManager.CurTimeSpeed = speed;
                     }
 
                     yield return null;
