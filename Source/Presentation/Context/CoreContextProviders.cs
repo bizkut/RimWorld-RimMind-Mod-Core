@@ -246,6 +246,18 @@ namespace RimMind.Presentation.Context
                 stalenessTicks: MapGeographyBuilder.RefreshTicks,
                 cacheScope: CacheScope.Map));
 
+            // One-character-per-cell base plan (walls, doors, beds, blueprints, zones) plus room facts, so colonists
+            // and the Advisor see the structure geometry. Rebuilt only when buildings/blueprints/zones change.
+            registry.Register(new ContextProviderDef(
+                key: "base_plan",
+                layer: ContextLayer.L1_Baseline,
+                priority: 0.85f,
+                provider: (pctx, ct) => ReadPawnContextAsync(pctx.PawnId,
+                    pawn => pawn.Map == null ? null : BasePlanViewBuilder.Get(pawn.Map), ct),
+                ownerMod: RimMindOwnerConsts.CoreModId,
+                stalenessTicks: 2500,
+                cacheScope: CacheScope.Map));
+
             registry.Register(new ContextProviderDef(
                 key: "pawn_base_info",
                 layer: ContextLayer.L1_Baseline,
