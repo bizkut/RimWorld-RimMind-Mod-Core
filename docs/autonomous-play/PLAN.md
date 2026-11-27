@@ -42,24 +42,52 @@ CONTROL=1 MODULES=Core SPEED=Ultrafast script/playthrough-macos.sh 10 50   # no-
 | ✅ | Nested tool arguments unwrapped; work types resolved by skill name | Core `b2508a1` | 2/10 failing decisions → 0 |
 | ✅ | Every colonist gets an agent (`RIMMIND_PLAYTHROUGH_ALL_AGENTS=1`, script default) | Core `8ba5d2f` | 3/3 agents active |
 
-## In progress
+## Colony overseer
 
-- 🔄 **Colony overseer — step 1: audit existing code** so nothing is duplicated. Candidates already found:
-  `ColonyMacroPerceiver` (Advisor), `CabinetProposal`/`ApprovalSubmissionPipeline` (Advisor),
-  `ColonySubagentCommand` (?), `ScopedAgentManager` / `ScopedThinkStrategy` (Core), `StorytellerComp_RimMindDirector`,
-  Actions composite tools (`plan_room_project`, `place_blueprint`, `add_worktable_bill`, `manage_zone`,
-  `designate_resources`, `query_buildable_structures`) with `ColonySpatialClusterSolver`, autonomy domains
-  (`AgentAutonomyPolicy`), Memory module (colony facts). Findings and reuse decision go here before any code.
+### Audit (2026-11-27) — what already exists
+
+No colony-level decision loop exists in any module. Reuse map:
+
+| Need | Existing code | Verdict |
+|---|---|---|
+| Colony assessment | Advisor `Perception/ColonyMacroPerceiver` (food-days, temperature extremes, beds vs colonists, corpses, threats, wood/steel, grow-zone cells, bottleneck list + prompt text); Core `Presentation/Agent/MapContextBuilder.BuildStaticMapTopology` (rooms, beds, worktables) and `BuildVolatileColonyResources` (wealth, food, resources, pending construction, bills) | reuse as-is |
+| Colony actions | Actions tools, colony-wide with optional `pawn_id`: `actions_plan_room_project`, `actions_place_blueprint`, `actions_query_buildable_structures`, `actions_add_worktable_bill`, `actions_manage_zone` (grow + stockpile), `actions_designate_resources`; Core `pawn.work` for priorities | reuse as-is |
+| Tool selection | `RimMindAPI.ToolSet.GetDefinitionsForScope(ToolScope.ColonyBuild \| ToolScope.ColonyManage, compactSchema: true)` | reuse as-is |
+| Execution | Advisor `AdvisorToolCallExecutor` + `AdvisorToolCallBatchRunner.ExecuteOnMainThread` (non-pawn caller id → `PawnId` null; Actions `ActionPermissionGuard` resolves map / falls back to a standing colonist) | reuse as-is |
+| Multi-round tool feedback | Advisor `AdvisorFeedbackSession` + assistant/tool message pattern in `AdvisorTaskDriver.RequestToolFeedback` | reuse pattern |
+| Response parsing | Advisor `AdvisorRecommendationParser.TryParseNative`; Core `LlmPayloadParser.ParsePseudoFunctionCalls` for tool calls written as text | reuse as-is |
+| Requests without a pawn | `RimMindAPI.Request.Send` (callbacks on main thread via `RequestCompletionInbox`); envelope with prebuilt messages skips pawn context build; npc id `colony-<mapId>` → session `rimmind-colony-<mapId>` | reuse as-is |
+| Scenario | `RimMindAPI.Context.RegisterScenario` — no `colony_decision` yet | add registration |
+| Cache-friendly layout | `OpenAIWireCodec` 4-zone layout (L0/L1 static, L2 volatile → final user turn) | reuse as-is |
+| Persisted colony plan | none (Memory module stores are per pawn / narrative) | **new**, small |
+| Cadence / bottleneck trigger | none (Advisor: per-pawn scan, random macro gate) | **new** |
+| Research project selection | none | **gap** — new tool, phase 2 |
+| Colony-level autonomy owner | autonomy policy is per pawn only | **gap** — overseer gated by an Advisor setting for now |
+| `ScopedAgent` / `ScopedAgentManager` (Core) | generic non-pawn agent shell: no context, no tools, no action dispatch, 300-tick cadence, only created by a debug window | not used (would need all of the above) |
+| `PlaythroughPlayerSimulation` / `ColonySubagentCommand` | harness that simulates player actions (unforbid, plan housing) | not an agent; keep its effects out of overseer metrics |
+
+### Design (phase 1)
+
+Lives in **RimMind-Advisor** (owns the macro perceiver, executor, feedback pattern); no Core changes.
+
+- `ColonyOverseerGameComponent`: per player-home map, every 250 ticks evaluate `ColonyMacroPerceiver`; run when
+  6 in-game hours passed or a new bottleneck appeared (min gap 1 in-game hour); one request in flight per map;
+  gated by Advisor setting `enableColonyOverseer` (default off) and Core `IsConfigured`.
+- Request: scenario `colony_decision`, npc id `colony-<mapId>`; messages L0 overseer rules + phase guidance (static),
+  L1 map topology (rarely changes), L2 macro state + colony resources + colonist skills + plan memory (volatile);
+  colony-scope tools; up to 2 feedback rounds so it can query, then act.
+- Execution through the Advisor executor with player authority (setting is the consent); every call and result is
+  logged `[RimMind-Overseer]` and appended to the plan memory.
+- Plan memory (persisted, per map): last run tick, last bottlenecks, last 20 actions with results.
+- Phase 2: research-project tool, phase tracking, deterministic safety net (grow zone / stockpile / beds),
+  colony-level autonomy owner.
+
+**Exit:** 10-day AI run vs control — no starvation, active bills > 0, construction > 0.
 
 ## Next
 
-- ⏭ **Colony overseer** (design draft, to be revised by the audit): one colony-level loop with its own scenario and
-  session (`rimmind-colony`); triggers every ~6 in-game hours + new bottleneck; colony context (macro state, rooms,
-  beds, zones, bills, research, skills) in cache-friendly order; colony tools only, full autonomy; persisted colony plan
-  (phases shelter → food → storage → power → defense → research); deterministic safety net for basics (grow zone,
-  stockpile, beds) if not handled within N hours.
-  **Exit:** 10-day AI run vs control: no starvation, bills > 0, construction > 0.
-- ⏭ **10-day AI run** with all fixes (after the overseer, or now as the pre-overseer reference).
+- 🔄 **Colony overseer phase 1** (design above).
+- ⏭ **10-day AI run** with all fixes + overseer, compared with the control.
 
 ## Backlog
 
