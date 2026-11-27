@@ -522,6 +522,39 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal(100, parsedResp.Value.PromptTokens);
                     Assert.Equal(80, parsedResp.Value.CachedTokens);
                 }),
+                ("OpenAIWireCodec keeps volatile layers out of the cacheable prefix", () =>
+                {
+                    LlmRequestEnvelope Env(string weather) => new LlmRequestEnvelope
+                    {
+                        Messages = new List<ChatMessage>
+                        {
+                            new ChatMessage { Role = "system", LayerTag = "L0", Content = "Rules" },
+                            new ChatMessage { Role = "system", LayerTag = "L1", Content = "Identity" },
+                            new ChatMessage { Role = "system", LayerTag = "L2", Content = weather },
+                            new ChatMessage { Role = "user", Content = "Decide" }
+                        },
+                        Examples = new List<ChatMessage>
+                        {
+                            new ChatMessage { Role = "user", Content = "ExampleIn" },
+                            new ChatMessage { Role = "assistant", Content = "ExampleOut" }
+                        },
+                        MaxTokens = 256
+                    };
+                    JArray Messages(string weather) =>
+                        (JArray)JObject.Parse(OpenAIWireCodec.BuildRequestJson(Env(weather), "m", 256))["messages"]!;
+
+                    var a = Messages("22C");
+                    var b = Messages("24C");
+                    Assert.Equal(new[] { "system", "system", "user", "assistant", "user" },
+                        a.Select(m => m.Value<string>("role")).ToArray());
+                    Assert.Equal("Rules", a[0].Value<string>("content"));
+                    Assert.Equal("Identity", a[1].Value<string>("content"));
+                    Assert.Equal("ExampleIn", a[2].Value<string>("content"));
+                    Assert.Equal("22C\nDecide", a[4].Value<string>("content"));
+                    // Only the final user turn differs, so everything before it stays prefix-cacheable.
+                    for (int i = 0; i < 4; i++)
+                        Assert.True(JToken.DeepEquals(a[i], b[i]));
+                }),
                 ("LogSecretRedactor redacts generic credentials and RimMindHttpClientPool classifies loopback hosts", () =>
                 {
                     string redacted = LogSecretRedactor.ForMessage("Authorization: Bearer sk-abc123456789012345 api_key=my_sk_9999999999999");

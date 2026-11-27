@@ -360,14 +360,31 @@ namespace RimMind.Application.Features.Llm
                 messages.Insert(0, new WireMessageDto { role = "system", content = "Please respond in JSON format." });
         }
 
+        /// <summary>
+        /// 4-zone KV-cache layout: byte-stable leading system layers (L0/L1) → few-shot examples → live conversation,
+        /// with volatile L2/L3/L5 observations (PromptZonePartitioner.IsVolatileLayerTag) folded into the latest user
+        /// turn. Left in the system block, they change the prompt prefix on every request and defeat provider prefix
+        /// caching for everything after them (examples, tool definitions): measured 6–10% cached vs 99% when only
+        /// the final user turn changes.
+        /// </summary>
         private static List<WireMessageDto> BuildMessages(LlmRequestEnvelope envelope)
         {
-            var converted = new List<WireMessageDto>();
+            var staticSystem = new List<WireMessageDto>();
+            var live = new List<WireMessageDto>();
+            var volatileObservations = new List<string>();
             if (envelope.Messages != null && envelope.Messages.Count > 0)
             {
                 foreach (var m in envelope.Messages)
                 {
                     if (m == null) continue;
+                    bool isSystem = m.Role == "system";
+                    if (isSystem && PromptZonePartitioner.IsVolatileLayerTag(m.LayerTag))
+                    {
+                        if (!string.IsNullOrWhiteSpace(m.Content))
+                            volatileObservations.Add(m.Content!);
+                        continue;
+                    }
+
                     var dto = new WireMessageDto { role = m.Role, content = m.Content };
                     if (m.Role == "assistant" && !string.IsNullOrEmpty(m.ReasoningContent))
                         dto.reasoning_content = m.ReasoningContent;
@@ -386,15 +403,15 @@ namespace RimMind.Application.Features.Llm
                             },
                         }).ToList();
                     }
-                    converted.Add(dto);
+
+                    // System messages before the first non-system message form the stable prefix; later ones keep
+                    // their position in the conversation.
+                    if (isSystem && live.Count == 0) staticSystem.Add(dto);
+                    else live.Add(dto);
                 }
             }
 
-            int firstNonSystem = converted.FindIndex(d => d.role != "system");
-            int splitAt = firstNonSystem < 0 ? converted.Count : firstNonSystem;
-
-            var messages = new List<WireMessageDto>();
-            for (int i = 0; i < splitAt; i++) messages.Add(converted[i]);
+            var messages = new List<WireMessageDto>(staticSystem);
             if (envelope.Examples != null && envelope.Examples.Count > 0)
             {
                 foreach (var ex in envelope.Examples)
@@ -403,7 +420,24 @@ namespace RimMind.Application.Features.Llm
                     messages.Add(new WireMessageDto { role = ex.Role, content = ex.Content });
                 }
             }
-            for (int i = splitAt; i < converted.Count; i++) messages.Add(converted[i]);
+
+            if (volatileObservations.Count > 0)
+            {
+                string observations = string.Join("\n", volatileObservations);
+                int lastUser = live.FindLastIndex(d => d.role == "user");
+                if (lastUser >= 0)
+                {
+                    var user = live[lastUser];
+                    user.content = string.IsNullOrEmpty(user.content) ? observations : observations + "\n" + user.content;
+                }
+                else
+                {
+                    // No user turn to carry them: keep them as system context after the cacheable prefix.
+                    messages.Add(new WireMessageDto { role = "system", content = observations });
+                }
+            }
+
+            messages.AddRange(live);
             return messages;
         }
 
