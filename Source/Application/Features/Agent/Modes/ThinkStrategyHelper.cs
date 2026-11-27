@@ -166,20 +166,55 @@ public static class ThinkStrategyHelper
             });
         }
 
+        // Models express "nothing needs doing" as wait/idle/none; that is a deliberate no-op, not a failed
+        // pawn.job write. dialogue.free is the executor's no-op, so map to it and keep the model's reason.
+        if (NoOpActionNames.Contains(json!.action.Trim()))
+        {
+            return Result<AgentDecision, RimMindError>.Ok(new AgentDecision
+            {
+                ActionIntent = "dialogue.free",
+                Reason = json.reason ?? "",
+                WantsMoreToolCalls = false,
+            });
+        }
+
         // Action tag present (with or without tool calls) → Action takes priority
         return Result<AgentDecision, RimMindError>.Ok(new AgentDecision
         {
-            ActionIntent = json!.action,
+            ActionIntent = json.action,
             Reason = json.reason ?? "",
             TargetPawnId = json.target,
-            // Models often send param as a JSON object; DecisionMapper.ParseParam expects JSON text either way.
-            Param = json.param == null || json.param.Type == Newtonsoft.Json.Linq.JTokenType.Null
-                ? null
-                : json.param.Type == Newtonsoft.Json.Linq.JTokenType.String
-                    ? json.param.ToString()
-                    : json.param.ToString(Newtonsoft.Json.Formatting.None),
+            Param = BuildParam(json),
             WantsMoreToolCalls = false,
         });
+    }
+
+    private static readonly HashSet<string> NoOpActionNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "wait", "idle", "none", "noop", "no_op", "no_action", "continue", "nothing",
+    };
+
+    /// <summary>
+    /// Param as JSON text for DecisionMapper.ParseParam. Models send it as a JSON object, a JSON string,
+    /// or omit it and put the arguments next to "action" (e.g. {"action":"pawn_work_set","def_name":"Mining"}).
+    /// </summary>
+    private static string? BuildParam(ActionJson json)
+    {
+        var param = json.param;
+        if (param != null && param.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+        {
+            return param.Type == Newtonsoft.Json.Linq.JTokenType.String
+                ? param.ToString()
+                : param.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        if (json.extra == null || json.extra.Count == 0)
+            return null;
+
+        var flat = new Newtonsoft.Json.Linq.JObject();
+        foreach (var kv in json.extra)
+            flat[kv.Key] = kv.Value;
+        return flat.ToString(Newtonsoft.Json.Formatting.None);
     }
 
     internal static bool IsMeaningfulActionName(string? action)
@@ -267,6 +302,9 @@ public static class ThinkStrategyHelper
         public string? reason;
         public string? target;
         public Newtonsoft.Json.Linq.JToken? param;
+        // Arguments placed beside "action" instead of inside "param".
+        [Newtonsoft.Json.JsonExtensionData]
+        public IDictionary<string, Newtonsoft.Json.Linq.JToken>? extra;
 #pragma warning restore CS0649
     }
 }

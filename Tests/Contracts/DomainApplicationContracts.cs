@@ -351,6 +351,50 @@ namespace RimMind.Tests.Contracts
                     Assert.True(parsed.IsOk);
                     Assert.Equal("{\"priority\":1}", parsed.Value.Param);
                 }),
+                ("arguments beside action become the param", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"action\":\"pawn_work_set\",\"pawn_id\":1007,\"def_name\":\"Mining\",\"value\":\"1\",\"reason\":\"best skill\"}"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("pawn_work_set", parsed.Value.ActionIntent);
+                    Assert.Equal("best skill", parsed.Value.Reason);
+                    var param = Newtonsoft.Json.Linq.JObject.Parse(parsed.Value.Param!);
+                    Assert.Equal("Mining", (string?)param["def_name"]);
+                    Assert.Equal(1007, (int)param["pawn_id"]!);
+                    Assert.Null(param["reason"]);
+                }),
+                ("wait is a deliberate no-op, not a pawn.job action", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"action\":\"wait\",\"reason\":\"mood stable, no threats\"}"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("dialogue.free", parsed.Value.ActionIntent);
+                    Assert.Equal("mood stable, no threats", parsed.Value.Reason);
+                }),
+                ("tool_name/arguments object is a tool call", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"tool_name\":\"actions_stabilize_rest\",\"arguments\":{\"pawn_id\":1010,\"reason\":\"wound aching\"}}"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("actions_stabilize_rest", parsed.Value.ActionIntent);
+                    Assert.Equal(1010, (int)Newtonsoft.Json.Linq.JObject.Parse(parsed.Value.Param!)["pawn_id"]!);
+                }),
+                ("tool_calls wrapper echoed as text uses the first call", () =>
+                {
+                    var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse
+                    {
+                        Content = "{\"tool_calls\":[{\"name\":\"pawn_job_set\",\"arguments\":{\"action\":\"eat_food\",\"pawn_id\":1007}}]}"
+                    });
+                    Assert.True(parsed.IsOk);
+                    Assert.Equal("pawn_job_set", parsed.Value.ActionIntent);
+                    Assert.Equal("eat_food", (string?)Newtonsoft.Json.Linq.JObject.Parse(parsed.Value.Param!)["action"]);
+                }),
                 ("plain text becomes free dialogue", () =>
                 {
                     var parsed = ThinkStrategyHelper.ParseDecisionCore(new LlmResponse { Content = "hello" });

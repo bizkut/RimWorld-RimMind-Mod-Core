@@ -380,8 +380,13 @@ namespace RimMind.Application.Features.Json
 
         private static ParsedPseudoFunctionCall? TryBuildCallFromJObject(JObject rawObj)
         {
+            // OpenAI-style wrapper echoed as text: {"tool_calls":[{...}]} → use the first call.
+            if (rawObj["tool_calls"] is JArray wrapped && wrapped.Count > 0 && wrapped[0] is JObject firstCall)
+                return TryBuildCallFromJObject(firstCall);
+
             string? rawToolName = rawObj.Value<string>("name")
                 ?? rawObj.Value<string>("tool")
+                ?? rawObj.Value<string>("tool_name")
                 ?? (rawObj["function"] as JObject)?.Value<string>("name");
             if (string.IsNullOrWhiteSpace(rawToolName) || !IsValidToolIdentifier(rawToolName))
                 return null;
@@ -410,6 +415,7 @@ namespace RimMind.Application.Features.Json
                 var copyObj = (JObject)rawObj.DeepClone();
                 copyObj.Remove("name");
                 copyObj.Remove("tool");
+                copyObj.Remove("tool_name");
                 copyObj.Remove("function");
                 copyObj.Remove("id");
                 copyObj.Remove("type");
