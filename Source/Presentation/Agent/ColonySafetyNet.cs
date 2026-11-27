@@ -65,36 +65,50 @@ namespace RimMind.Presentation.Agent
         public static void Evaluate(Map map)
         {
             int now = Find.TickManager.TicksGame;
+            string scope = map.uniqueID + ":";
             var seen = new HashSet<string>();
 
-            foreach (var pawn in map.mapPawns.FreeColonistsSpawned.ToList())
+            // FreeColonists also lists colonists being carried (not spawned): their alerts stay active, but nobody
+            // acts on them while someone carries them.
+            foreach (var pawn in map.mapPawns.FreeColonists.ToList())
             {
                 string name = pawn.Name?.ToStringShort ?? pawn.LabelShort;
+                bool carried = !pawn.Spawned;
+                var food = pawn.needs?.food;
+                bool starving = food != null && food.CurLevelPercentage < StarvingFood && pawn.CurJobDef != JobDefOf.Ingest;
+
                 if (pawn.Downed)
                 {
-                    Raise(seen, "downed", name, $"downed, health {pawn.health.summaryHealth.SummaryHealthPercent:P0}", now);
-                    TryHelp(map, pawn, name, "downed", now, rescue: true);
+                    Raise(seen, scope, "downed", name, $"downed, health {pawn.health.summaryHealth.SummaryHealthPercent:P0}", now);
+                    if (starving) Raise(seen, scope, "starving", name, $"food {food!.CurLevelPercentage:P0} (downed)", now);
+                    if (carried) continue;
+                    if (!pawn.InBed()) TryHelp(map, pawn, name, "downed", now, HelpKind.Rescue);
+                    else if (starving) TryHelp(map, pawn, name, "starving", now, HelpKind.Feed);
                     continue;
                 }
+                if (carried) continue;
 
                 float bleed = pawn.health?.hediffSet?.BleedRateTotal ?? 0f;
                 if (bleed >= BleedingRate)
                 {
-                    Raise(seen, "bleeding", name, $"bleeding {bleed:P0}/day", now);
-                    TryHelp(map, pawn, name, "bleeding", now, rescue: false);
+                    Raise(seen, scope, "bleeding", name, $"bleeding {bleed:P0}/day", now);
+                    TryHelp(map, pawn, name, "bleeding", now, HelpKind.Tend);
                 }
 
                 if (!pawn.CanReachMapEdge())
                 {
-                    Raise(seen, "trapped", name, "cannot reach the map edge (sealed in)", now);
+                    Raise(seen, scope, "trapped", name, "cannot reach the map edge (sealed in)", now);
                     TryFreeTrapped(map, pawn, name, now);
                 }
 
-                var food = pawn.needs?.food;
-                if (food != null && food.CurLevelPercentage < StarvingFood && pawn.CurJobDef != JobDefOf.Ingest)
+                if (starving)
                 {
-                    Raise(seen, "starving", name, $"food {food.CurLevelPercentage:P0}", now);
-                    if (Due("starving:" + name, now))
+                    Raise(seen, scope, "starving", name, $"food {food!.CurLevelPercentage:P0}", now);
+                    // Someone carrying or treating a patient finishes that first unless close to death.
+                    bool helping = pawn.carryTracker?.CarriedThing is Pawn
+                        || pawn.CurJobDef == JobDefOf.Rescue || pawn.CurJobDef == JobDefOf.TendPatient
+                        || pawn.CurJobDef == JobDefOf.FeedPatient;
+                    if ((!helping || food.CurLevelPercentage < 0.05f) && Due("starving:" + name, now))
                     {
                         var result = JobActionDispatcher.HandleEatFood(pawn, new MechanismWriteArgs
                         {
@@ -114,11 +128,11 @@ namespace RimMind.Presentation.Agent
                     CorpseFirstSeen[corpse.thingIDNumber] = first = now;
                 if (now - first < UnburiedTicks) continue;
                 string name = dead.Name?.ToStringShort ?? dead.LabelShort;
-                Raise(seen, "unburied", name, $"colonist corpse unburied for {(now - first) / 2500} h", now);
+                Raise(seen, scope, "unburied", name, $"colonist corpse unburied for {(now - first) / 2500} h", now);
                 if (Due("unburied", now)) EnsureGrave(map, name);
             }
 
-            foreach (var key in Active.Keys.Where(k => !seen.Contains(k)).ToList())
+            foreach (var key in Active.Keys.Where(k => k.StartsWith(scope, StringComparison.Ordinal) && !seen.Contains(k)).ToList())
             {
                 var alert = Active[key];
                 Active.Remove(key);
@@ -131,9 +145,9 @@ namespace RimMind.Presentation.Agent
             }
         }
 
-        private static void Raise(HashSet<string> seen, string code, string subject, string detail, int now)
+        private static void Raise(HashSet<string> seen, string scope, string code, string subject, string detail, int now)
         {
-            string key = code + ":" + subject;
+            string key = scope + code + ":" + subject;
             seen.Add(key);
             if (Active.TryGetValue(key, out var existing))
             {
@@ -164,29 +178,61 @@ namespace RimMind.Presentation.Agent
             Log.Message($"[RimMind-Safety] {action} for {code} {subject}{(target != null ? " → " + target : string.Empty)}: {(ok ? "ok" : "failed")} {detail}");
         }
 
-        /// <summary>Nearest able colonist rescues (downed) or tends (bleeding) the patient.</summary>
-        private static void TryHelp(Map map, Pawn patient, string name, string code, int now, bool rescue)
+        private enum HelpKind { Rescue, Tend, Feed }
+
+        /// <summary>
+        /// Nearest able, fed colonist rescues (downed, not in bed), tends (bleeding) or feeds (downed in bed and
+        /// starving) the patient — unless someone is already doing it.
+        /// </summary>
+        private static void TryHelp(Map map, Pawn patient, string name, string code, int now, HelpKind kind)
         {
-            if (!Due(code + ":" + name, now)) return;
-            var helper = map.mapPawns.FreeColonistsSpawned
-                .Where(p => p != patient && !p.Downed && !p.Drafted && p.InMentalState == false
+            var jobDef = kind switch
+            {
+                HelpKind.Rescue => JobDefOf.Rescue,
+                HelpKind.Tend => JobDefOf.TendPatient,
+                _ => JobDefOf.FeedPatient,
+            };
+            string action = kind.ToString().ToLowerInvariant();
+            var colonists = map.mapPawns.FreeColonistsSpawned;
+            if (colonists.Any(p => p.CurJobDef == jobDef && (p.CurJob.targetA.Thing == patient || p.CurJob.targetB.Thing == patient)))
+                return;
+            if (!Due(code + ":" + action + ":" + name, now)) return;
+
+            var helper = colonists
+                .Where(p => p != patient && !p.Downed && !p.Drafted && !p.InMentalState
                     && !p.WorkTypeIsDisabled(WorkTypeDefOf.Doctor)
                     && p.CanReserveAndReach(patient, PathEndMode.Touch, Danger.Deadly))
-                .OrderBy(p => p.Position.DistanceToSquared(patient.Position))
+                .OrderBy(p => (p.needs?.food?.CurLevelPercentage ?? 1f) < StarvingFood ? 1 : 0)
+                .ThenBy(p => p.Position.DistanceToSquared(patient.Position))
                 .FirstOrDefault();
             if (helper == null)
             {
-                Intervene(code, name, rescue ? "rescue" : "tend", null, false, "no able colonist can reach them");
+                Intervene(code, name, action, null, false, "no able colonist can reach them");
                 return;
             }
+            string helperName = helper.Name?.ToStringShort ?? helper.LabelShort;
+
+            if (kind == HelpKind.Feed)
+            {
+                if (!FoodUtility.TryFindBestFoodSourceFor(helper, patient, false, out Thing foodSource, out ThingDef foodDef, canRefillDispenser: false))
+                {
+                    Intervene(code, name, action, helperName, false, "no food the patient can eat");
+                    return;
+                }
+                var feed = JobMaker.MakeJob(JobDefOf.FeedPatient, foodSource, patient);
+                feed.count = FoodUtility.WillIngestStackCountOf(patient, foodDef, FoodUtility.GetNutrition(patient, foodSource, foodDef));
+                var fed = JobActionDispatcher.StartJobVerified(helper, feed);
+                Intervene(code, name, action, helperName, fed.IsOk, fed.IsOk ? "bringing food" : fed.Error.Message);
+                return;
+            }
+
             var args = new MechanismWriteArgs
             {
-                MechanismId = "pawn.job", PawnId = helper.thingIDNumber, Action = rescue ? "rescue_pawn" : "tend_pawn",
+                MechanismId = "pawn.job", PawnId = helper.thingIDNumber, Action = kind == HelpKind.Rescue ? "rescue_pawn" : "tend_pawn",
                 Params = new Dictionary<string, string> { ["target_pawn_id"] = patient.thingIDNumber.ToString() },
             };
-            var result = rescue ? JobActionDispatcher.HandleRescuePawn(helper, args) : JobActionDispatcher.HandleTendPawn(helper, args);
-            Intervene(code, name, rescue ? "rescue" : "tend", helper.Name?.ToStringShort ?? helper.LabelShort, result.IsOk,
-                result.IsOk ? "on the way" : result.Error.Message);
+            var result = kind == HelpKind.Rescue ? JobActionDispatcher.HandleRescuePawn(helper, args) : JobActionDispatcher.HandleTendPawn(helper, args);
+            Intervene(code, name, action, helperName, result.IsOk, result.IsOk ? "on the way" : result.Error.Message);
         }
 
         /// <summary>
