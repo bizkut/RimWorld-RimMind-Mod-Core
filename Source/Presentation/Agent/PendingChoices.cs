@@ -78,9 +78,11 @@ namespace RimMind.Presentation.Agent
 
             foreach (var letter in Find.LetterStack?.LettersListForReading ?? new List<Letter>())
             {
-                // Standard letters only offer "OK / Jump to location"; some letters need their own selection screen.
-                if (letter is not ChoiceLetter choiceLetter || letter is StandardLetter || letter is ChoiceLetter_ChoosePawn
-                    || letter is ChoiceLetter_BabyBirth || letter is ChoiceLetter_BabyToChild || letter is ChoiceLetter_GameEnded)
+                // Only letters that ask for a decision; notices (death, new quest, entity discovered, standard) and
+                // letters with their own selection screen (choose pawn, babies) are left to the player.
+                if (!(letter is ChoiceLetter_AcceptJoiner || letter is ChoiceLetter_AcceptCreepJoiner
+                      || letter is ChoiceLetter_AcceptVisitors || letter is ChoiceLetter_BetrayVisitors
+                      || letter is ChoiceLetter_RansomDemand) || letter is not ChoiceLetter choiceLetter)
                     continue;
                 var options = choiceLetter.Choices?.ToList();
                 if (options == null || options.Count < 2) continue;
