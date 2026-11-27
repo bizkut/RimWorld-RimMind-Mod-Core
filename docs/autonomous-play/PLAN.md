@@ -101,6 +101,7 @@ adapted after failures (smaller zone → room → designations).
 6. 🔄 **Web UI with live data stream** (below).
 7. ⏭ **Colony master plan / base layout** (below) — waiting on three choices.
 8. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
+9. ⏭ **DLC support** (below): context first, then tools, per DLC.
 
 ## Map geography
 
@@ -146,6 +147,31 @@ Live view of a run or a normal game. Contract: [`EVENTS.md`](EVENTS.md).
    feed with per-tool success rates, AI health/cost, live map from the geography grid, daily screenshots, run comparison.
 3. **Controls** (later): pause/speed, force overseer decision, player directives, agent toggles, approvals — through a
    command file polled on the main thread; every control logged as a player intervention.
+
+## DLC support
+
+Today (2026-11-27): runs with all DLCs active (Royalty, Ideology, Biotech, Anomaly, Odyssey) complete with 0 exceptions;
+none is a dependency. The models see only ideoligion name + memes, a noble title, and genes (`PawnDataExtractor`).
+No DLC-specific actions exist. Goal: the overseer and colonists understand and use each DLC's mechanics.
+
+Rules for every DLC item:
+- Gate on `ModsConfig.<Dlc>Active`; with the DLC off, nothing is sent to the model and no tool is registered.
+- Context first (cheap, safe), then tools; tools go through the existing tool manifest, autonomy domains and
+  `HighRiskOperations` for anything irreversible (surgery, gene implanting, rituals with deaths, entity release).
+- Colony-level mechanics belong to the overseer; personal ones (psycasts, own needs) to colonist agents.
+- Each item is verified in a playthrough with that DLC on, and the base game still runs with it off.
+
+| DLC | Context to add | Tools / actions | Owner |
+|---|---|---|---|
+| Royalty | titles and their needs/throne-room requirements, psylink level, psyfocus, known psycasts, empire goodwill, active royal quests | cast psycast (targeted), meditate/psyfocus, build throne room/required furniture, accept/decline Royalty quests, permits (call aid/trade) | agents (psycasts, meditation), overseer (throne room, quests, permits) |
+| Ideology | precepts that constrain actions (diet, nudity, corpses, trees), roles and their holders, ritual availability/quality, required buildings, slaves | assign ideoligion roles, schedule rituals/ceremonies, build required/altar buildings, follow precepts in bills and work (e.g. no meat), slave handling | overseer; agents follow precept limits |
+| Biotech | xenotypes/genes (exists), mechanitor bandwidth and mechs, children/growth moments, pollution, genepacks | form/gestate mechs and assign mech work, child care/learning, implant/combine genes (high-risk), pollution cleanup, gene bank/building | overseer (mechs, genes, pollution), agents (child care) |
+| Anomaly | monolith level, containment entities and their strength, dark study progress, active threats (e.g. fleshbeasts, shamblers) | containment cell building and capture/contain, study entity, anomaly research projects, defend/avoid anomaly threats | overseer; agents react to threats |
+| Odyssey | gravship status and fuel, landing sites, space/orbital conditions | gravship maintenance, prepare and launch decisions (high-risk) | overseer only |
+
+Order: Ideology (precepts already shape everyday choices and are partly in context) → Biotech (mechs strongly change
+colony labour) → Royalty → Anomaly → Odyssey. Exit per DLC: a playthrough with that DLC on where the AI uses at least
+one of its mechanics correctly and breaks none of its rules.
 
 ## Backlog
 
