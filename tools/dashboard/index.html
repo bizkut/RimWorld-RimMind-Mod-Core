@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RimMind · colony observatory</title><link rel="stylesheet" href="/style.css"></head>
+<body><header><div><h1>RimMind <span>colony observatory</span></h1><div id="header">Select a run</div></div><div class="selectors"><label>Run <select id="run"></select></label><label>Compare with <select id="compare"></select></label></div></header>
+<main><section><h2>Exit criteria <small>latest snapshot</small></h2><div id="badges" class="row"></div></section>
+<section><h2>Colony vital signs <small>in-game days · dashed = comparison</small></h2><div id="charts" class="charts"></div></section>
+<section><h2>Colonists <small>latest snapshot</small></h2><div id="colonists" class="cards"></div></section>
+<div class="columns"><section><h2>Decisions &amp; actions</h2><div class="row filters"><label>Source <select id="source"><option value="">All</option><option>agent</option><option>advisor</option><option>overseer</option></select></label><label><input type="checkbox" id="failures"> Failures only</label></div><div id="feed" class="feed"></div><h3>Tool results</h3><div id="tools"></div></section>
+<section><h2>LLM requests <small>completed calls</small></h2><div id="llm"></div><h2>Recent letters</h2><div id="letters"></div></section></div>
+<div class="columns"><section><h2>Map <small>north at top</small></h2><div id="map"></div></section><section><h2>Screenshots</h2><div id="screenshots" class="screenshots"></div></section></div></main><script src="/app.js"></script></body></html>
