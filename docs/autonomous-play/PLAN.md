@@ -137,7 +137,8 @@ adapted after failures (smaller zone → room → designations).
 10. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
     shapes (R7).
 11. ⏭ **P1 Overseer phase 2** (R6): burial, research tool, defenses, food chain, blueprint priority lanes; quests
-    (accept/decline offers in the Quests tab, not popups).
+    listed only in the Quests tab (accept/decline there — quest-offer letters/popups like "Transport pod crash" are
+    already answered through item 6).
 12. ⏭ **Colony master plan / base layout** (below) — waiting on three choices; uses the base plan view.
 13. ⏭ **Scorecard + multi-seed evaluation** (R9).
 14. ⏭ **DLC support** (below): context first, then tools, per DLC.
@@ -214,6 +215,10 @@ one of its mechanics correctly and breaks none of its rules.
 
 ## Backlog
 
+- 📋 A popup waits until a running overseer cycle finishes (bounded: requests still run while paused). Preempt the
+  cycle or answer popups in a separate short session if the wait matters.
+- ✅ Runner modal sweep also runs after 10 real seconds without tick progress, so a force-pausing window the overseer
+  does not handle (confirmation boxes, specialised dialogs) can no longer freeze a playthrough.
 - 📋 Remaining cache misses: first request per session and occasional cold upstream routing (≈50% now).
 - 📋 Advisor and agent of the same pawn share one OpenCode session; split per role if it helps caching.
 - 📋 RimAI repo (`Rimworld_AI_Framework`) is frozen; its `docs/research/rimmind-*.md` describe RimMind v0.0.1 and are stale.
