@@ -140,8 +140,11 @@ adapted after failures (smaller zone → room → designations).
    (`[colony_alerts]`). Verified in game (`pt-20261127-174850`): sealed + starving colonist freed and fed, killed
    colonist buried. Downed/bleeding paths not yet exercised in game. Watchdog alerts on the dashboard: next.
 9. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
-10. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
-    shapes (R7).
+10. 🔄 **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
+    shapes (R7). Done (Actions `d053c1f`): `eat_and_recreation` / `stabilize_rest` refuse rest below 30% food and eat
+    instead (with a note); a failed eat is reported, not masked by rest. Seen in the 10-day run: agents ordered rest
+    for "comfort 0%" and permanent scars while food fell to 15%. Still open: general effect checks, repeat guard,
+    teaching that scars are permanent and comfort comes from furniture, threat assessment, parser shapes.
 11. ⏭ **P1 Overseer phase 2** (R6): burial, research tool, defenses, food chain, blueprint priority lanes; quests
     listed only in the Quests tab (accept/decline there — quest-offer letters/popups like "Transport pod crash" are
     already answered through item 6).
