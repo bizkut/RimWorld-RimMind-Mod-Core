@@ -27,7 +27,8 @@ CONTROL=1 MODULES=Core SPEED=Ultrafast script/playthrough-macos.sh 10 50   # no-
 | No-AI control, 10 days (`pt-20261127-131328-control`) | colony lost: 1 dead day 7, food 0 day 9, nobody left day 10; never any bills/construction/research |
 | AI, 3 days, old parser (`pt-20261127-113652`) | mood ~0.9 vs control ~0.5, 74 actions (64 ok); no bills/construction |
 | AI + overseer, 1 day (`pt-20261127-150450`) | overseer: 2 decisions, 7 calls (4 ok); harvest 12 + chop 25 ok; grow zone ×2 and shelter room failed (placement anchor bug) |
-| AI 10-day run | ⏭ after the placement fix |
+| AI + overseer, 1 day, placement fix (`pt-20261127-*` after Actions `255cf52`) | overseer: 3 decisions, 12 calls (10 ok): 46-cell rice zone, 5×5 shelter room (built same day), stockpile, stove + bed blueprints, work priorities for all 3; failed: `Haul` designation (unsupported), cooking bill before a stove existed. Agents: 14 decisions, 2 failed (`eat`, `PlantWork` — now aliased) |
+| AI 10-day run | 🔄 running next |
 
 ## Done
 
@@ -91,15 +92,11 @@ adapted after failures (smaller zone → room → designations).
 
 ## Next
 
-1. 🔄 **Placement anchor fix (Actions fork).** `ManageZone`, `PlanRoomProject`, `PlaceBlueprint` search around the
-   colonist only if within 28 cells of the map center, else around the map center. On maps where colonists start
-   away from the center (here: center fogged/rock — ASCII map all `X`) every placement fails. Fix: one shared anchor
-   rule — existing base (reuse `MapSpatialSnapshotBuilder` base-anchor logic: colonist buildings → stockpiles) →
-   actor colonist / colonists' centroid → map center. Verify: 1-day run with a grow zone, stockpile and shelter placed.
-2. ⏭ **Overseer turn budget.** Second decision spent both feedback rounds on `actions_query_buildable_structures`
-   and acted on nothing; put a compact structures/bottleneck summary in the L2 context (or allow a query without
-   using a round) so turns go to actions.
-3. ⏭ **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
+1. ✅ **Placement anchor fix** — Actions `255cf52` (`MapSpatialSnapshotBuilder.ResolvePlacementOrigin`: base →
+   acting colonist → colonists → map center); Actions tests 104/104.
+2. ✅ **Overseer turn budget** — Advisor `9d365ae`: a query-only turn earns one extra feedback round.
+3. ✅ **Aliases** — Core `2f3fcd3`: bare `eat`/`draft`/`undraft`, work type `PlantWork`/`farming` → Growing.
+4. 🔄 **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
 4. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
 
 ## Backlog
