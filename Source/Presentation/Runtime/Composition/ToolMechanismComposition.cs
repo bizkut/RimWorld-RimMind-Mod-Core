@@ -36,6 +36,7 @@ namespace RimMind.Presentation.Runtime.Composition
             registry.Register(new RimMind.Infrastructure.Mechanisms.World.Faction.FactionMechanism());
             registry.Register(new RimMind.Infrastructure.Mechanisms.World.Storyteller.StorytellerMechanism());
             registry.Register(new RimMind.Infrastructure.Mechanisms.World.ChoiceLetter.ChoiceLetterMechanism());
+            registry.Register(new RimMind.Infrastructure.Mechanisms.World.Dialog.DialogChoiceMechanism());
         }
 
         public static IActionExecutor ComposeActionExecutor(

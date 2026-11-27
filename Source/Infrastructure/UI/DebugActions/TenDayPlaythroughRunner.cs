@@ -1750,6 +1750,9 @@ namespace RimMind.Infrastructure.UI.DebugActions
                         string typeName = w.GetType().Name;
                         if (typeName.IndexOf("Advisor", StringComparison.OrdinalIgnoreCase) >= 0)
                             continue;
+                        // The colony overseer answers event/letter popups itself (it also closes ones it cannot answer).
+                        if (RimMind.Presentation.Agent.PendingChoices.AutoAnswerActive && w.GetType() == typeof(Dialog_NodeTree))
+                            continue;
 
                         if (w is Dialog_GiveName ||
                             w is Dialog_MessageBox ||
