@@ -892,13 +892,25 @@ namespace RimMind.Infrastructure.UI.DebugActions
                 TimeSpeed speed = PlaythroughSpeed;
                 Find.TickManager.CurTimeSpeed = speed;
                 int lastMaintenanceTick = dayStartTick;
+                int lastSeenTick = Find.TickManager.TicksGame;
+                float lastProgressRealtime = UnityEngine.Time.realtimeSinceStartup;
 
                 while (Find.TickManager.TicksGame < dayEndTick)
                 {
                     int nowTick = Find.TickManager.TicksGame;
-                    if (nowTick - lastMaintenanceTick >= 250)
+                    float nowReal = UnityEngine.Time.realtimeSinceStartup;
+                    if (nowTick != lastSeenTick)
+                    {
+                        lastSeenTick = nowTick;
+                        lastProgressRealtime = nowReal;
+                    }
+
+                    // Ticks stop while a force-pausing window is open, so also sweep on real time; event dialogs are
+                    // left to the overseer when it is on (it closes ones it cannot answer).
+                    if (nowTick - lastMaintenanceTick >= 250 || nowReal - lastProgressRealtime >= 10f)
                     {
                         lastMaintenanceTick = nowTick;
+                        lastProgressRealtime = nowReal;
                         DismissModalWindows(Find.CurrentMap);
                         AutoApprovePendingOverlayRequests(nowTick);
                     }
