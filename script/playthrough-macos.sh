@@ -106,10 +106,10 @@ open -n -a "$RW" \
     --env "RIMMIND_TEST_ENDPOINT=$ENDPOINT" --env "RIMMIND_TEST_MODEL=$MODEL" --env "RIMMIND_TEST_API_KEY=$API_KEY" \
     --env "RIMMIND_PLAYTHROUGH_OUTPUT_DIR=$OUT" --env "RIMMIND_PLAYTHROUGH_SPEED=$SPEED" --env "RIMMIND_PLAYTHROUGH_AUTO_EXIT=1" \
     --args -quicktest "-rimmind-playthrough=$RUN_ID" "-rimmind-playthrough-days=$DAYS"
-# RimWorld does not start -quicktest until its window has been activated once; bring it to the front.
+# RimWorld does not start -quicktest until its window has been activated once. `open -a` (no -n) activates the
+# running instance through LaunchServices; unlike System Events it needs no Accessibility permission.
 sleep 10
-GAME_PID=$(pgrep -f -- "-rimmind-playthrough=$RUN_ID" | head -1 || true)
-[ -n "$GAME_PID" ] && osascript -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $GAME_PID) to true" >/dev/null 2>&1 || true
+open -a "$RW"
 sleep 5
 while pgrep -f -- "-rimmind-playthrough=$RUN_ID" >/dev/null; do
     if [ $(( $(date +%s) - START )) -ge $(( TIMEOUT_MIN * 60 )) ]; then
