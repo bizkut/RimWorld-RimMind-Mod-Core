@@ -132,7 +132,13 @@ adapted after failures (smaller zone → room → designations).
 7. ✅ **Interim room fix (R2)** — Actions `PlanRoomProjectCompositeTool`: every room keeps a free walkable one-cell
    ring (rooms never share walls) and its door goes on the side facing the base whose outside cell is reachable.
    Full layout still comes from the master plan.
-8. ⏭ **P0 Colony safety net** (R1) + **reachability / trapped-colonist check** (R2) + **watchdog alerts** (R8).
+8. ✅ **P0 Colony safety net** (R1, R2, R10) — Core `ColonySafetyNet` (deterministic, every 250 ticks, on while the
+   overseer runs): starving (< 15% food) → forced eat; trapped (cannot reach the map edge) → wall/rock between the
+   room and open ground marked for deconstruct/mine and the colonist starts on it; downed → nearest doctor-capable
+   colonist rescues; bleeding → tend; colonist corpse unburied > 6 h → grave blueprint (bypasses the blueprint
+   limit). `alert` / `intervention` events; active alerts trigger an overseer decision and appear in its L2
+   (`[colony_alerts]`). Verified in game (`pt-20261127-174850`): sealed + starving colonist freed and fed, killed
+   colonist buried. Downed/bleeding paths not yet exercised in game. Watchdog alerts on the dashboard: next.
 9. ⏭ **P0 Base plan view** for all models (R2) and **placement validation** (no blocked doors/paths).
 10. ⏭ **P1 Outcome verification** (R3), **need hierarchy + repeat guard** (R4), **threat assessment** (R5), parser
     shapes (R7).
@@ -159,6 +165,19 @@ terrain, fertility, water or ore). Nobody sees the whole map.
   `advisor_decision` (colonists + Advisor); the overseer adds it to its own L1.
 - Not doing: free target coordinates in placement tools (would scatter buildings). Placement goes through the master
   plan instead.
+
+### Ruins and abandoned structures (next geography step)
+
+Gap (2026-11-27): the overview only marks *colony* buildings (`#`); faction-less structures — ruined walls, abandoned
+rooms, ancient shrines/"Ancient danger" complexes — are drawn as plain ground, and no tool can claim or salvage them.
+
+- Geography: new symbol `R` = ruins (non-colony, non-natural buildings); points of interest per ruin cluster: size,
+  walls/doors count, whether it encloses a room (roofed? doorway?), salvage value (steel/stone), and danger flag for
+  sealed ancient complexes (do not open until the colony can fight).
+- Overseer tools: **claim** an abandoned structure (vanilla Claim designation), **salvage** it (deconstruct for
+  materials), **repurpose** an enclosed ruin as a first shelter/storeroom (claim walls, add door + bed through the room
+  tool), with the same reachability checks as new rooms.
+- Master plan: an enclosed, safe ruin near good ground can become the base seed instead of building from scratch.
 
 ## Colony master plan / base layout
 
