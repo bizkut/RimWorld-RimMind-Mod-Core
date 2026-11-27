@@ -42,6 +42,23 @@ namespace RimMind.Presentation.Agent
         private static readonly Dictionary<string, SafetyAlert> Active = new Dictionary<string, SafetyAlert>();
         private static readonly Dictionary<int, int> CorpseFirstSeen = new Dictionary<int, int>();
         private static readonly Dictionary<string, int> LastIntervention = new Dictionary<string, int>();
+        private static readonly Dictionary<int, List<int>> BotchTicks = new Dictionary<int, List<int>>();
+        public const int BotchAlertCount = 3;
+
+        /// <summary>Called for every botched construction (Harmony postfix on <c>Frame.FailConstruction</c>).</summary>
+        public static void RecordBotchedConstruction(Pawn? worker, Frame frame)
+        {
+            if (worker == null || !Enabled) return;
+            if (!BotchTicks.TryGetValue(worker.thingIDNumber, out var ticks))
+                BotchTicks[worker.thingIDNumber] = ticks = new List<int>();
+            ticks.Add(Find.TickManager.TicksGame);
+            LiveEvents.Emit("action", new JObject
+            {
+                ["source"] = "game", ["npc"] = null, ["pawn"] = worker.Name?.ToStringShort ?? worker.LabelShort,
+                ["tool"] = "construction_botched", ["ok"] = false,
+                ["result"] = $"botched {frame.def?.entityDefToBuild?.label ?? frame.LabelShort}; Construction skill {worker.skills?.GetSkill(SkillDefOf.Construction)?.Level ?? 0}",
+            });
+        }
 
         public static IReadOnlyList<SafetyAlert> Alerts => Active.Values.ToList();
 
@@ -60,6 +77,7 @@ namespace RimMind.Presentation.Agent
             Active.Clear();
             CorpseFirstSeen.Clear();
             LastIntervention.Clear();
+            BotchTicks.Clear();
         }
 
         public static void Evaluate(Map map)
@@ -132,6 +150,18 @@ namespace RimMind.Presentation.Agent
                 string name = dead.Name?.ToStringShort ?? dead.LabelShort;
                 Raise(seen, scope, "unburied", name, $"colonist corpse unburied for {(now - first) / 2500} h", now);
                 if (Due("unburied", now)) EnsureGrave(map, name);
+            }
+
+            // Repeated botched construction: the builder is too unskilled for what it is building.
+            foreach (var pawn in map.mapPawns.FreeColonistsSpawned)
+            {
+                if (!BotchTicks.TryGetValue(pawn.thingIDNumber, out var ticks)) continue;
+                ticks.RemoveAll(t => now - t > 60000);
+                if (ticks.Count < BotchAlertCount) continue;
+                int skill = pawn.skills?.GetSkill(SkillDefOf.Construction)?.Level ?? 0;
+                Raise(seen, scope, "botching", pawn.Name?.ToStringShort ?? pawn.LabelShort,
+                    $"{ticks.Count} botched constructions in the last day (Construction skill {skill}); give construction to a " +
+                    "more skilled colonist (pawn_work_set) or build cheaper things", now);
             }
 
             foreach (var key in Active.Keys.Where(k => k.StartsWith(scope, StringComparison.Ordinal) && !seen.Contains(k)).ToList())
