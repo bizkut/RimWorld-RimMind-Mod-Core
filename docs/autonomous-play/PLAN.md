@@ -97,11 +97,10 @@ adapted after failures (smaller zone → room → designations).
 2. ✅ **Overseer turn budget** — Advisor `9d365ae`: a query-only turn earns one extra feedback round.
 3. ✅ **Aliases** — Core `2f3fcd3`: bare `eat`/`draft`/`undraft`, work type `PlantWork`/`farming` → Growing.
 4. 🔄 **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
-4. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
+5. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
 
 ## Backlog
 
-- 📋 Bare `undraft`/`draft` intents map to `pawn.job` and fail; alias them to the draft mechanism.
 - 📋 Remaining cache misses: first request per session and occasional cold upstream routing (≈50% now).
 - 📋 Advisor and agent of the same pawn share one OpenCode session; split per role if it helps caching.
 - 📋 RimAI repo (`Rimworld_AI_Framework`) is frozen; its `docs/research/rimmind-*.md` describe RimMind v0.0.1 and are stale.
