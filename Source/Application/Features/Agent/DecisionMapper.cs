@@ -20,7 +20,11 @@ namespace RimMind.Application.Features.Agent
             {
                 ["prioritize_work"] = ("pawn.work", "set_priority"),
                 ["set_work_priority"] = ("pawn.work", "set_priority"),
-                ["take_job"] = ("pawn.job", "assign_work")
+                ["take_job"] = ("pawn.job", "assign_work"),
+                // Bare intents models use in playthroughs; without a dot they defaulted to pawn.job and failed.
+                ["eat"] = ("pawn.job", "eat_food"),
+                ["draft"] = ("pawn.draft", "draft"),
+                ["undraft"] = ("pawn.draft", "undraft")
             };
 
         /// <summary>

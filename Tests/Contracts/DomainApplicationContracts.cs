@@ -252,6 +252,12 @@ namespace RimMind.Tests.Contracts
                     Assert.Equal("Construction", args.DefName);
                     Assert.Equal("1", args.ValueJson);
                 }),
+                ("bare eat/draft/undraft intents map to their mechanisms instead of pawn.job", () =>
+                {
+                    Assert.Equal(("pawn.job", "eat_food"), DecisionMapper.ParseActionIntent("eat"));
+                    Assert.Equal(("pawn.draft", "draft"), DecisionMapper.ParseActionIntent("draft"));
+                    Assert.Equal(("pawn.draft", "undraft"), DecisionMapper.ParseActionIntent("Undraft"));
+                }),
                 ("take_job maps to pawn.job assign_work with DefName from job_type", () =>
                 {
                     var parsed = DecisionMapper.ParseActionIntent("take_job");

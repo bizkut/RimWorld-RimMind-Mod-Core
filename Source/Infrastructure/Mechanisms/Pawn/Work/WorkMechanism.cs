@@ -272,7 +272,7 @@ namespace RimMind.Infrastructure.Mechanisms.Pawn.Work
                 "clean" or "cleaning" => "Cleaning",
                 "construct" or "construction" or "build" or "repair" => "Construction",
                 "plantcut" or "plantcutting" or "cutplants" or "chopwood" => "PlantCutting",
-                "grow" or "growing" or "sow" or "harvest" => "Growing",
+                "grow" or "growing" or "sow" or "harvest" or "plantwork" or "farming" => "Growing",
                 "cook" or "cooking" => "Cooking",
                 "mine" or "mining" => "Mining",
                 "doctor" or "doctoring" or "tend" or "medical" => "Doctor",
