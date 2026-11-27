@@ -2,8 +2,8 @@
 
 **Goal:** start a colony, leave the keyboard, and the LLM keeps it alive and growing (food, shelter, production,
 research, defense) with no player input.
-**Where:** forks `bizkut/RimWorld-RimMind-Mod-Core` and `bizkut/RimWorld-RimMind-Mod-Advisor`, branch `autonomous-play`.
-Other modules (Actions, Memory, …) are used unmodified from `../RimWorld-RimMind-Mod-*`.
+**Where:** forks `bizkut/RimWorld-RimMind-Mod-Core`, `bizkut/RimWorld-RimMind-Mod-Advisor` (and next
+`bizkut/RimWorld-RimMind-Mod-Actions`), branch `autonomous-play`. Other modules (Memory, …) are used unmodified.
 **Model:** `beam-free` (reasoning) via the local OpenCode proxy `http://127.0.0.1:8787/v1`.
 **Status keys:** ✅ done · 🔄 in progress · ⏭ next · 📋 backlog
 
@@ -26,7 +26,8 @@ CONTROL=1 MODULES=Core SPEED=Ultrafast script/playthrough-macos.sh 10 50   # no-
 |---|---|
 | No-AI control, 10 days (`pt-20261127-131328-control`) | colony lost: 1 dead day 7, food 0 day 9, nobody left day 10; never any bills/construction/research |
 | AI, 3 days, old parser (`pt-20261127-113652`) | mood ~0.9 vs control ~0.5, 74 actions (64 ok); no bills/construction |
-| AI 10-day run | ⏭ not yet valid — previous attempt stopped (old sessions + one colonist without agent) |
+| AI + overseer, 1 day (`pt-20261127-150450`) | overseer: 2 decisions, 7 calls (4 ok); harvest 12 + chop 25 ok; grow zone ×2 and shelter room failed (placement anchor bug) |
+| AI 10-day run | ⏭ after the placement fix |
 
 ## Done
 
@@ -82,12 +83,24 @@ Lives in **RimMind-Advisor** (owns the macro perceiver, executor, feedback patte
 - Phase 2: research-project tool, phase tracking, deterministic safety net (grow zone / stockpile / beds),
   colony-level autonomy owner.
 
+**Status:** ✅ phase 1 implemented — Advisor `a49ac7d` (+ test stub fix `0e1e3a7`), script `b3e1ef8`; Advisor tests
+50/50 (4 new); first in-game run above. The loop, triggers, session, tools, execution and feedback work; the model
+adapted after failures (smaller zone → room → designations).
+
 **Exit:** 10-day AI run vs control — no starvation, active bills > 0, construction > 0.
 
 ## Next
 
-- 🔄 **Colony overseer phase 1** (design above).
-- ⏭ **10-day AI run** with all fixes + overseer, compared with the control.
+1. 🔄 **Placement anchor fix (Actions fork).** `ManageZone`, `PlanRoomProject`, `PlaceBlueprint` search around the
+   colonist only if within 28 cells of the map center, else around the map center. On maps where colonists start
+   away from the center (here: center fogged/rock — ASCII map all `X`) every placement fails. Fix: one shared anchor
+   rule — existing base (reuse `MapSpatialSnapshotBuilder` base-anchor logic: colonist buildings → stockpiles) →
+   actor colonist / colonists' centroid → map center. Verify: 1-day run with a grow zone, stockpile and shelter placed.
+2. ⏭ **Overseer turn budget.** Second decision spent both feedback rounds on `actions_query_buildable_structures`
+   and acted on nothing; put a compact structures/bottleneck summary in the L2 context (or allow a query without
+   using a round) so turns go to actions.
+3. ⏭ **10-day AI run** with agents + overseer vs the no-AI control (exit criteria above).
+4. ⏭ **Phase 2:** research-project tool, plan phases, deterministic safety net, colony-level autonomy owner.
 
 ## Backlog
 
@@ -95,3 +108,5 @@ Lives in **RimMind-Advisor** (owns the macro perceiver, executor, feedback patte
 - 📋 Remaining cache misses: first request per session and occasional cold upstream routing (≈50% now).
 - 📋 Advisor and agent of the same pawn share one OpenCode session; split per role if it helps caching.
 - 📋 RimAI repo (`Rimworld_AI_Framework`) is frozen; its `docs/research/rimmind-*.md` describe RimMind v0.0.1 and are stale.
+- 📋 Playthrough harness `PlaythroughPlayerSimulation` can place housing itself; make sure its actions are excluded
+  from overseer metrics if it ever fires (it has not so far).
